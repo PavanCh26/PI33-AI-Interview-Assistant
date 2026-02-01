@@ -6,3 +6,4 @@ fpdf
 pypdf
 gunicorn
 openai
+google-generativeai

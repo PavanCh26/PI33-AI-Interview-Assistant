@@ -1,8 +1,3 @@
 flask
+openai
 pypdf
-python-dotenv
-google-generativeai
-marshmallow
-flask-cors
-flask-bcrypt
-fpdf2

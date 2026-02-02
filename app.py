@@ -97,27 +97,47 @@ IN_MEMORY_RESULTS = {} # { user_id: [results] }
 
 llm = LLMEngine()
 
-# --- GLOBAL ERROR HANDLER ---
+# --- GLOBAL JSON ERROR HANDLERS ---
+@app.errorhandler(404)
+def not_found(e):
+    return jsonify({"error": "Resource not found", "message": str(e)}), 404
+
+@app.errorhandler(405)
+def method_not_allowed(e):
+    return jsonify({"error": "Method not allowed", "message": str(e)}), 405
+
 @app.errorhandler(Exception)
 def handle_exception(e):
-    # Pass through HTTP errors
+    # Pass through HTTP errors if they occur
     if isinstance(e, HTTPException):
         print(f"DEBUG: HTTP Error {e.code}: {e.description}", flush=True)
         return jsonify({
-            "error": e.name,
-            "message": e.description
+            "error": getattr(e, 'name', 'HTTP Error'),
+            "message": getattr(e, 'description', str(e))
         }), e.code
 
-    # Handle non-HTTP exceptions only
+    # Handle all other code exceptions
     print(f"DEBUG: Unhandled Exception: {str(e)}", flush=True)
+    import traceback
+    traceback.print_exc()
     return jsonify({
         "error": "Internal Server Error",
-        "message": "An unexpected error occurred."
+        "message": str(e) or "An unexpected error occurred."
     }), 500
+
+@app.route('/api/health')
+def health_check():
+    return jsonify({
+        "status": "healthy",
+        "firebase_initialized": len(firebase_admin._apps) > 0,
+        "database_connected": db is not None
+    })
 
 # --- AUTH ENDPOINTS ---
 @app.route('/api/register', methods=['POST'])
 def register():
+    if not db:
+        return jsonify({'error': 'Database not initialized'}), 500
     try:
         data = request.get_json(silent=True)
         if data is None:
@@ -236,6 +256,8 @@ def auth_firebase():
 
 @app.route('/api/login', methods=['POST'])
 def login_api():
+    if not db:
+        return jsonify({'error': 'Database not initialized'}), 500
     try:
         data = request.get_json(silent=True)
         if data is None:
@@ -277,6 +299,8 @@ def login_api():
 def save_profile():
     if 'user_id' not in session:
         return jsonify({'error': 'Unauthorized'}), 401
+    if not db:
+        return jsonify({'error': 'Database not initialized'}), 500
     data = request.json
     user_id = data.get('user_id')
     email = session.get('user_email')
@@ -310,6 +334,8 @@ def save_profile():
 def get_profile(user_id):
     if 'user_id' not in session or session['user_id'] != user_id:
         return jsonify({'error': 'Unauthorized'}), 401
+    if not db:
+        return jsonify({'error': 'Database not initialized'}), 500
     
     email = session.get('user_email')
     user_ref = db.collection('users').document(email)
@@ -336,6 +362,8 @@ def get_profile(user_id):
 def save_results():
     if 'user_id' not in session:
         return jsonify({'error': 'Unauthorized'}), 401
+    if not db:
+        return jsonify({'error': 'Database not initialized'}), 500
     data = request.json
     user_id = data.get('user_id')
     
@@ -359,6 +387,8 @@ def save_results():
 def get_results():
     if 'user_id' not in session:
         return jsonify({'error': 'Unauthorized'}), 401
+    if not db:
+        return jsonify({'error': 'Database not initialized'}), 500
     
     email = session.get('user_email')
     user_ref = db.collection('users').document(email)
@@ -376,6 +406,9 @@ def get_results():
 
 @app.route('/api/export/pdf', methods=['POST'])
 def export_pdf():
+    if not db:
+        # Fallback for PDF if DB is down? Better to fail gracefully.
+        return jsonify({'error': 'Database not initialized'}), 500
     data = request.json
     user_id = data.get('user_id')
     domain = data.get('domain', 'General')

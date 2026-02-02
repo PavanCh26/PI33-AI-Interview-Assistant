@@ -1,7 +1,5 @@
 // --- CONFIG ---
-const API_BASE = window.location.port === '5000'
-    ? "/api"
-    : "http://127.0.0.1:5000/api";
+const API_BASE = "/api";
 
 // --- STATE ---
 let isLoginMode = true;

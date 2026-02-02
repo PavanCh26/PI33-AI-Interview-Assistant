@@ -95,7 +95,7 @@ def register():
     try:
         data = request.get_json(silent=True)
         if not data: return jsonify({'error': 'Invalid JSON'}), 400
-        email = data.get('email')
+        email = data.get('email', '').strip().lower()
         password = data.get('password')
         if not email or not password: return jsonify({'error': 'Email and password required'}), 400
         
@@ -135,7 +135,7 @@ def auth_firebase():
         if not decoded_token:
             return jsonify({'error': 'Invalid ID token'}), 401
         
-        email = decoded_token.get('email')
+        email = decoded_token.get('email', '').lower()
         user_id = decoded_token.get('sub') # UID in tokeninfo
         
         if not email:
@@ -186,7 +186,7 @@ def login_api():
         return jsonify({'error': 'Database service unavailable'}), 500
     try:
         data = request.get_json(silent=True)
-        email = data.get('email')
+        email = data.get('email', '').strip().lower()
         password = data.get('password')
         
         user_data = db_conn.get_document('users', email)
@@ -221,7 +221,7 @@ def save_profile():
         data = request.get_json(silent=True)
         if not data: return jsonify({'error': 'No data received'}), 400
         
-        email = session.get('user_email')
+        email = session.get('user_email', '').lower()
         
         current_user = db_conn.get_document('users', email)
         if not current_user:

@@ -71,13 +71,18 @@ class FirebaseRest:
     def get_document(self, collection_path, document_id):
         """Fetches a document from Firestore using the REST API."""
         try:
-            url = f"{self.base_url}/{collection_path}/{document_id}"
+            # Document ID might contain dots/signs, but Firestore handles them in URL path usually.
+            # However, ensure we lowercase email-based IDs for consistency.
+            doc_id = str(document_id).lower()
+            url = f"{self.base_url}/{collection_path}/{doc_id}?key={self.api_key}"
             response = requests.get(url, timeout=10)
             if response.status_code == 200:
                 data = response.json()
                 return {k: self._convert_value(v) for k, v in data.get('fields', {}).items()}
+            elif response.status_code == 404:
+                return None # Normal for non-existent users
             else:
-                print(f"DEBUG: Firestore Get document failed. Path: {collection_path}/{document_id}, Status: {response.status_code}, Response: {response.text}")
+                print(f"DEBUG: Firestore Get failed. Path: {collection_path}/{doc_id}, Status: {response.status_code}, Response: {response.text}")
             return None
         except Exception as e:
             print(f"Firestore Get Error: {e}")
@@ -86,10 +91,14 @@ class FirebaseRest:
     def set_document(self, collection_path, document_id, data):
         """Creates or overwrites a document in Firestore."""
         try:
-            url = f"{self.base_url}/{collection_path}/{document_id}"
+            doc_id = str(document_id).lower()
+            url = f"{self.base_url}/{collection_path}/{doc_id}?key={self.api_key}"
             payload = {'fields': self._to_firestore_dict(data)}
-            response = requests.patch(url, json=payload, timeout=10) # Patch works as upsert
-            return response.status_code in [200, 201]
+            response = requests.patch(url, json=payload, timeout=10)
+            if response.status_code in [200, 201]:
+                return True
+            print(f"DEBUG: Firestore Set failed. Path: {collection_path}/{doc_id}, Status: {response.status_code}, Response: {response.text}")
+            return False
         except Exception as e:
             print(f"Firestore Set Error: {e}")
             return False
@@ -97,13 +106,13 @@ class FirebaseRest:
     def update_document(self, collection_path, document_id, data):
         """Updates specific fields in a Firestore document."""
         try:
-            # For patch, we need to specify updateMask for partial updates
-            url = f"{self.base_url}/{collection_path}/{document_id}"
+            doc_id = str(document_id).lower()
+            url = f"{self.base_url}/{collection_path}/{doc_id}?key={self.api_key}"
             params = []
             for k in data.keys():
                 params.append(f"updateMask.fieldPaths={k}")
             
-            url += "?" + "&".join(params)
+            url += "&" + "&".join(params) # Use & since key is already there
             payload = {'fields': self._to_firestore_dict(data)}
             response = requests.patch(url, json=payload, timeout=10)
             return response.status_code == 200
@@ -114,13 +123,14 @@ class FirebaseRest:
     def get_collection(self, collection_path, limit=10):
         """Fetches multiple documents from a collection."""
         try:
-            url = f"{self.base_url}/{collection_path}?pageSize={limit}"
+            url = f"{self.base_url}/{collection_path}?pageSize={limit}&key={self.api_key}"
             response = requests.get(url, timeout=10)
             if response.status_code == 200:
                 docs = response.json().get('documents', [])
                 results = []
                 for doc in docs:
-                    doc_id = doc['name'].split('/')[-1]
+                    name_parts = doc['name'].split('/')
+                    doc_id = name_parts[-1]
                     res = {k: self._convert_value(v) for k, v in doc.get('fields', {}).items()}
                     res['id'] = doc_id
                     results.append(res)

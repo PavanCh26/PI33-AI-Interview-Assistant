@@ -12,12 +12,13 @@ from datetime import datetime
 from dotenv import load_dotenv
 from werkzeug.exceptions import HTTPException
 import firebase_admin
-from firebase_admin import credentials, auth, firestore
+# firebase_admin imports moved inside functions to save memory
 
 # Initialize Firebase Admin
 db = None
 def initialize_firebase():
     global db
+    from firebase_admin import credentials, firestore
     if firebase_admin._apps:
         if db is None:
             try:
@@ -27,7 +28,6 @@ def initialize_firebase():
         return True
         
     print(f"DEBUG: Starting Firebase Admin initialization. Current directory: {os.getcwd()}", flush=True)
-    print(f"DEBUG: Files in root: {os.listdir('.')}", flush=True)
     
     try:
         # 1. Try Environment Variable string
@@ -50,15 +50,13 @@ def initialize_firebase():
         ]
         
         for path in possible_paths:
-            print(f"DEBUG: Checking for key at: {path}", flush=True)
             if os.path.exists(path):
-                print(f">>> SUCCESS: Found key file at {path}", flush=True)
+                print(f"DEBUG: Found key file at {path}", flush=True)
                 cred = credentials.Certificate(path)
                 firebase_admin.initialize_app(cred)
                 db = firestore.client()
                 return True
         
-        print("WARNING: No Firebase key found after checking all sources.", flush=True)
         return False
     except Exception as e:
         print(f"ERROR: Firebase initialization failed: {str(e)}", flush=True)
@@ -136,6 +134,7 @@ def health_check():
 # --- AUTH ENDPOINTS ---
 @app.route('/api/register', methods=['POST'])
 def register():
+    from firebase_admin import firestore
     if not db:
         return jsonify({'error': 'Database not initialized'}), 500
     try:
@@ -178,6 +177,7 @@ def register():
 
 @app.route('/api/auth/firebase', methods=['POST'])
 def auth_firebase():
+    from firebase_admin import auth, firestore
     # Attempt initialization again if it previously failed (failsafe)
     if not initialize_firebase():
         files = os.listdir('.')

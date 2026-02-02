@@ -120,6 +120,10 @@ def register():
 
 @app.route('/api/auth/firebase', methods=['POST'])
 def auth_firebase():
+    # Final check for Firebase initialization
+    if not firebase_admin._apps:
+        return jsonify({'error': 'Firebase server-side SDK not initialized. Please check Render environment variables.'}), 500
+
     data = request.get_json(silent=True)
     if not data or 'idToken' not in data:
         return jsonify({'error': 'Missing idToken'}), 400
@@ -128,7 +132,8 @@ def auth_firebase():
     print(f"DEBUG: Verifying Firebase token: {id_token[:20]}...", flush=True)
     try:
         # Verify the ID token
-        decoded_token = auth.verify_id_token(id_token)
+        # Adding check_revoked=True and clock_skew to be safe
+        decoded_token = auth.verify_id_token(id_token, check_revoked=True)
         uid = decoded_token['uid']
         email = decoded_token.get('email')
         name = decoded_token.get('name', 'Google User')

@@ -21,15 +21,28 @@ try:
         firebase_key_json = os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON")
         if firebase_key_json:
             import json
-            cred_dict = json.loads(firebase_key_json)
-            cred = credentials.Certificate(cred_dict)
+            print("DEBUG: Found FIREBASE_SERVICE_ACCOUNT_JSON env var.", flush=True)
+            try:
+                cred_dict = json.loads(firebase_key_json)
+                cred = credentials.Certificate(cred_dict)
+                firebase_admin.initialize_app(cred)
+            except Exception as json_err:
+                print(f"ERROR: Failed to parse Firebase JSON env var: {json_err}", flush=True)
+                # Fallback to local file if JSON parsing failed
+                if os.path.exists('firebase-key.json'):
+                    cred = credentials.Certificate('firebase-key.json')
+                    firebase_admin.initialize_app(cred)
         else:
             # Fallback to local file
-            cred = credentials.Certificate('firebase-key.json')
-        firebase_admin.initialize_app(cred)
-    print("DEBUG: Firebase Admin initialized successfully.", flush=True)
+            if os.path.exists('firebase-key.json'):
+                cred = credentials.Certificate('firebase-key.json')
+                firebase_admin.initialize_app(cred)
+            else:
+                print("WARNING: No Firebase key found (neither env var nor file).", flush=True)
+
+    print("DEBUG: Firebase Admin initialization check complete.", flush=True)
 except Exception as e:
-    print(f"WARNING: Firebase Admin not initialized: {e}", flush=True)
+    print(f"WARNING: Firebase Admin initialization failed: {e}", flush=True)
 
 load_dotenv() 
 

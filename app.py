@@ -12,9 +12,10 @@ from datetime import datetime
 from dotenv import load_dotenv
 from werkzeug.exceptions import HTTPException
 import firebase_admin
-from firebase_admin import credentials, auth
+from firebase_admin import credentials, auth, firestore
 
 # Initialize Firebase Admin
+db = None
 def initialize_firebase():
     if firebase_admin._apps:
         return True
@@ -31,6 +32,8 @@ def initialize_firebase():
             cred_dict = json.loads(firebase_key_json)
             cred = credentials.Certificate(cred_dict)
             firebase_admin.initialize_app(cred)
+            global db
+            db = firestore.client()
             return True
 
         # 2. Try Local File (Check multiple paths)
@@ -47,6 +50,8 @@ def initialize_firebase():
                 print(f">>> SUCCESS: Found key file at {path}", flush=True)
                 cred = credentials.Certificate(path)
                 firebase_admin.initialize_app(cred)
+                global db
+                db = firestore.client()
                 return True
         
         print("WARNING: No Firebase key found after checking all sources.", flush=True)
@@ -82,8 +87,7 @@ CORS(app, supports_credentials=True, origins=[
 bcrypt = Bcrypt(app)
 
 # --- IN-MEMORY STORAGE ---
-# Replaces SQLite database for simplicity as requested
-IN_MEMORY_USERS = {}  # { email: {user_id, email, password, profile_data} }
+# IN_MEMORY_USERS replaced by Firestore for persistence
 IN_MEMORY_SESSIONS = {} # { session_id: {skills, score, history} }
 IN_MEMORY_RESULTS = {} # { user_id: [results] }
 
@@ -127,21 +131,24 @@ def register():
         print(f"DEBUG: Error in register: {str(e)}", flush=True)
         return jsonify({'error': 'Internal registration error'}), 500
         
-    if email in IN_MEMORY_USERS:
+    user_ref = db.collection('users').document(email)
+    if user_ref.get().exists:
         print(f"DEBUG: Email {email} already exists", flush=True)
         return jsonify({'error': 'Email already exists'}), 400
         
     user_id = str(uuid.uuid4())
     hashed_pw = bcrypt.generate_password_hash(password).decode('utf-8')
     
-    IN_MEMORY_USERS[email] = {
+    user_data = {
         'user_id': user_id,
         'email': email,
         'password': hashed_pw,
         'name': 'User',
         'onboarded': 0,
-        'profile': {}
+        'profile': {},
+        'created_at': firestore.SERVER_TIMESTAMP
     }
+    user_ref.set(user_data)
     
     return jsonify({'message': 'User registered successfully', 'user_id': user_id})
 
@@ -180,19 +187,25 @@ def auth_firebase():
         
         print(f"DEBUG: Firebase UID: {uid}, Email: {email}", flush=True)
 
-        # Check if user exists, else create
-        if email not in IN_MEMORY_USERS:
+        # Persistence with Firestore
+        user_ref = db.collection('users').document(email)
+        doc = user_ref.get()
+        
+        if not doc.exists:
             user_id = str(uuid.uuid4())
-            IN_MEMORY_USERS[email] = {
+            user_data = {
                 'user_id': user_id,
                 'email': email,
                 'firebase_uid': uid,
                 'name': name,
                 'onboarded': 0,
-                'profile': {}
+                'profile': {},
+                'created_at': firestore.SERVER_TIMESTAMP
             }
+            user_ref.set(user_data)
+        else:
+            user_data = doc.to_dict()
         
-        user_data = IN_MEMORY_USERS[email]
         session['user_id'] = user_data['user_id']
         session['user_email'] = email
         session.permanent = True
@@ -202,7 +215,7 @@ def auth_firebase():
             'email': email,
             'name': user_data['name'],
             'onboarded': user_data['onboarded'],
-            'profile': user_data['profile']
+            'profile': user_data.get('profile', {})
         })
         
     except ValueError as ve:
@@ -223,9 +236,12 @@ def login_api():
         email = data.get('email')
         password = data.get('password')
         
-        user_data = IN_MEMORY_USERS.get(email)
+        user_ref = db.collection('users').document(email)
+        doc = user_ref.get()
+        user_data = doc.to_dict() if doc.exists else None
+        
         print(f"DEBUG: Login Attempt for {email}. Found: {user_data is not None}", flush=True)
-        if not user_data or not bcrypt.check_password_hash(user_data['password'], password):
+        if not user_data or 'password' not in user_data or not bcrypt.check_password_hash(user_data['password'], password):
             print("DEBUG: Invalid credentials", flush=True)
             return jsonify({'error': 'Invalid email or password'}), 401
     except Exception as e:
@@ -251,13 +267,18 @@ def save_profile():
     user_id = data.get('user_id')
     email = session.get('user_email')
     
-    if email not in IN_MEMORY_USERS or IN_MEMORY_USERS[email]['user_id'] != user_id:
-        return jsonify({'error': 'Forbidden'}), 403
+    user_ref = db.collection('users').document(email)
+    doc = user_ref.get()
+    
+    if not doc.exists:
+        return jsonify({'error': 'User not found'}), 404
         
-    IN_MEMORY_USERS[email]['name'] = data.get('name', IN_MEMORY_USERS[email]['name'])
-    IN_MEMORY_USERS[email]['profile'] = data
-    IN_MEMORY_USERS[email]['photo'] = data.get('photo', IN_MEMORY_USERS[email].get('photo'))
-    IN_MEMORY_USERS[email]['onboarded'] = 1
+    user_ref.update({
+        'name': data.get('name', doc.to_dict().get('name')),
+        'profile': data,
+        'photo': data.get('photo', doc.to_dict().get('photo')),
+        'onboarded': 1
+    })
     
     return jsonify({'message': 'Profile updated successfully'})
 
@@ -267,14 +288,17 @@ def get_profile(user_id):
         return jsonify({'error': 'Unauthorized'}), 401
     
     email = session.get('user_email')
-    user_data = IN_MEMORY_USERS.get(email)
+    user_ref = db.collection('users').document(email)
+    doc = user_ref.get()
     
-    if not user_data:
+    if not doc.exists:
         return jsonify({'error': 'Profile not found'}), 404
+    
+    user_data = doc.to_dict()
         
     # Merge basic info with profile dict for frontend
     profile = {
-        **user_data['profile'], 
+        **user_data.get('profile', {}), 
         'user_id': user_data['user_id'], 
         'email': user_data['email'], 
         'name': user_data['name'], 
@@ -290,21 +314,21 @@ def save_results():
     data = request.json
     user_id = data.get('user_id')
     
-    if user_id != session['user_id']:
-         return jsonify({'error': 'Forbidden'}), 403
+    email = session.get('user_email')
+    user_ref = db.collection('users').document(email)
     
-    if user_id not in IN_MEMORY_RESULTS:
-        IN_MEMORY_RESULTS[user_id] = []
-        
-    IN_MEMORY_RESULTS[user_id].append({
+    result_data = {
         'timestamp': datetime.now().isoformat(),
-        'domain': data.get('domain'),
-        'score_mcq': data.get('score_mcq'),
-        'score_interview': data.get('score_interview'),
-        'feedback': data.get('feedback')
-    })
+        'scores': data.get('scores'),
+        'responses': data.get('responses'),
+        'feedback': data.get('feedback'),
+        'date': datetime.now().strftime("%Y-%m-%d %H:%M")
+    }
     
-    return jsonify({'message': 'Results saved'})
+    # Save to sub-collection 'results' under the user
+    user_ref.collection('results').add(result_data)
+    
+    return jsonify({'message': 'Results saved successfully'})
 
 @app.route('/api/export/pdf', methods=['POST'])
 def export_pdf():
@@ -325,11 +349,14 @@ def export_pdf():
     pdf.cell(190, 15, "Interview Performance Report", ln=True, align='C')
     pdf.ln(10)
     
-    # User Details (if available in memory)
+    # User Details (from Firestore)
     email = session.get('user_email')
     user_name = "Candidate"
-    if email and email in IN_MEMORY_USERS:
-        user_name = IN_MEMORY_USERS[email].get('name', "Candidate")
+    if email:
+        user_ref = db.collection('users').document(email)
+        doc = user_ref.get()
+        if doc.exists:
+            user_name = doc.to_dict().get('name', "Candidate")
     
     pdf.set_font("Arial", 'B', 14)
     pdf.set_text_color(0, 0, 0)

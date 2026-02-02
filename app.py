@@ -125,6 +125,7 @@ def auth_firebase():
         return jsonify({'error': 'Missing idToken'}), 400
     
     id_token = data.get('idToken')
+    print(f"DEBUG: Verifying Firebase token: {id_token[:20]}...", flush=True)
     try:
         # Verify the ID token
         decoded_token = auth.verify_id_token(id_token)
@@ -132,6 +133,8 @@ def auth_firebase():
         email = decoded_token.get('email')
         name = decoded_token.get('name', 'Google User')
         
+        print(f"DEBUG: Firebase UID: {uid}, Email: {email}", flush=True)
+
         # Check if user exists, else create
         if email not in IN_MEMORY_USERS:
             user_id = str(uuid.uuid4())
@@ -157,11 +160,12 @@ def auth_firebase():
             'profile': user_data['profile']
         })
         
-    except ValueError:
-        return jsonify({'error': 'Invalid ID token'}), 401
+    except ValueError as ve:
+        print(f"DEBUG: Firebase ValueError: {ve}", flush=True)
+        return jsonify({'error': f'Invalid ID token format: {ve}'}), 401
     except Exception as e:
-        print(f"DEBUG: Firebase auth error: {e}", flush=True)
-        return jsonify({'error': 'Could not verify Firebase token. Ensure firebase-key.json is uploaded.'}), 500
+        print(f"DEBUG: Firebase auth exception: {type(e).__name__} - {e}", flush=True)
+        return jsonify({'error': f'Firebase auth failed: {str(e)}'}), 500
 
 @app.route('/api/login', methods=['POST'])
 def login_api():

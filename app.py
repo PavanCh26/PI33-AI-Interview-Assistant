@@ -1,8 +1,3 @@
-from flask import Flask, render_template, request, jsonify, session, send_file, make_response
-from flask_cors import CORS
-from flask_bcrypt import Bcrypt
-from services.pdf_processor import extract_text_from_pdf
-from fpdf import FPDF
 import io
 import os
 import uuid
@@ -61,8 +56,12 @@ def initialize_firebase():
         print(f"ERROR: Firebase initialization failed: {str(e)}", flush=True)
         return False
 
-# Initial attempt at startup
-initialize_firebase()
+# Initial attempt at startup removed to save memory on Render
+# initialize_firebase()
+
+from flask import Flask, render_template, request, jsonify, session, send_file, make_response
+from flask_cors import CORS
+from flask_bcrypt import Bcrypt
 
 load_dotenv() 
 
@@ -421,6 +420,7 @@ def export_pdf():
     score_int = data.get('score_interview', 0)
     feedback_list = data.get('feedback', [])
     
+    from fpdf import FPDF
     # Create PDF
     pdf = FPDF()
     pdf.add_page()
@@ -513,6 +513,7 @@ def upload_resume():
     
     if file:
         try:
+            from services.pdf_processor import extract_text_from_pdf
             text = extract_text_from_pdf(file)
             if not text:
                  return jsonify({'error': 'Could not extract text from PDF'}), 400

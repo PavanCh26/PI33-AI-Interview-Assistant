@@ -1,0 +1,8 @@
+.venv/
+.venv2/
+__pycache__/
+*.pyc
+.git/
+.vscode/
+git_installer.exe
+models.py

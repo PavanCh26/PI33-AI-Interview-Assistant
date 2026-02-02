@@ -1,10 +1,9 @@
 flask
 pypdf
 python-dotenv
-google-generativeai
-openai
 flask-cors
 flask-bcrypt
 fpdf2
 gunicorn
 firebase-admin
+requests

@@ -1,67 +1,64 @@
-# AI imports moved inside methods to save memory
 import os
 import json
 import random
+import requests
 
 class LLMEngine:
     def __init__(self):
         # Load API keys
         self.gemini_key = os.getenv("GOOGLE_API_KEY")
         self.openai_key = os.getenv("OPENAI_API_KEY")
-        self.gemini_model = None
-        self.openai_client = None
-        self._initialized = False
-
-    def _lazy_init(self):
-        if self._initialized: return
-        
-        if self.openai_key:
-            try:
-                from openai import OpenAI
-                self.openai_client = OpenAI(api_key=self.openai_key)
-            except ImportError:
-                print("DEBUG: openai not installed")
-
-        if self.gemini_key:
-            try:
-                import google.generativeai as genai
-                genai.configure(api_key=self.gemini_key)
-                self.gemini_model = genai.GenerativeModel('gemini-1.5-flash')
-            except ImportError:
-                print("DEBUG: google-generativeai not installed")
-        
-        self._initialized = True
 
     def _generate_text(self, prompt, temperature=0.7):
-        """Unified method to call either Gemini or GPT-4o-mini."""
-        self._lazy_init()
+        """Unified method to call either Gemini or GPT-4o-mini using REST APIs."""
         
-        # Prefer OpenAI if available, else use Gemini
-        if self.openai_client:
+        # 1. Try OpenAI REST API if key exists
+        if self.openai_key:
             try:
-                response = self.openai_client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=temperature
+                headers = {
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {self.openai_key}"
+                }
+                payload = {
+                    "model": "gpt-4o-mini",
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": temperature
+                }
+                response = requests.post(
+                    "https://api.openai.com/v1/chat/completions",
+                    headers=headers,
+                    json=payload,
+                    timeout=30
                 )
-                return response.choices[0].message.content
+                if response.status_code == 200:
+                    return response.json()['choices'][0]['message']['content']
+                else:
+                    print(f"OpenAI REST Error: {response.text}")
             except Exception as e:
-                print(f"OpenAI Error: {e}")
-                
-        if self.gemini_model:
+                print(f"OpenAI REST Exception: {e}")
+
+        # 2. Try Gemini REST API if key exists
+        if self.gemini_key:
             try:
-                import google.generativeai as genai
-                response = self.gemini_model.generate_content(
-                    prompt,
-                    generation_config=genai.types.GenerationConfig(
-                        temperature=temperature,
-                        max_output_tokens=500
-                    )
-                )
-                return response.text
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={self.gemini_key}"
+                headers = {"Content-Type": "application/json"}
+                payload = {
+                    "contents": [{
+                        "parts": [{"text": prompt}]
+                    }],
+                    "generationConfig": {
+                        "temperature": temperature,
+                        "maxOutputTokens": 1000
+                    }
+                }
+                response = requests.post(url, headers=headers, json=payload, timeout=30)
+                if response.status_code == 200:
+                    return response.json()['candidates'][0]['content']['parts'][0]['text']
+                else:
+                    print(f"Gemini REST Error: {response.text}")
             except Exception as e:
-                print(f"Gemini Error: {e}")
-                
+                print(f"Gemini REST Exception: {e}")
+
         return None
 
     def extract_skills(self, text):
@@ -74,6 +71,11 @@ class LLMEngine:
         if res:
             try:
                 clean_res = res.replace("```json", "").replace("```", "").strip()
+                # Find start and end of JSON array
+                start = clean_res.find('[')
+                end = clean_res.rfind(']') + 1
+                if start >= 0 and end > 0:
+                    return json.loads(clean_res[start:end])
                 return json.loads(clean_res)
             except:
                 pass
@@ -98,7 +100,7 @@ class LLMEngine:
             history_str = "\n".join([f"Q: {h['q']}\nA: {h['a']}" for h in history])
             turn_count = len(history)
 
-            # --- FIXED QUESTION BANK (User Requested) ---
+            # --- FIXED QUESTION BANK ---
             C_QUESTIONS = [
                 "What is the difference between malloc() and calloc()?",
                 "Explain pointers and pointer arithmetic with an example.",
@@ -106,7 +108,6 @@ class LLMEngine:
                 "How does memory allocation work in C? What causes memory leaks?",
                 "Write a C program to reverse a string without using library functions."
             ]
-            
             PYTHON_QUESTIONS = [
                 "What is the difference between a list, tuple, and set in Python?",
                 "Explain how Python manages memory and garbage collection.",
@@ -114,7 +115,6 @@ class LLMEngine:
                 "Explain the difference between deep copy and shallow copy.",
                 "Write a Python function to find the second largest number in a list."
             ]
-            
             JAVA_QUESTIONS = [
                 "What is the difference between == and .equals() in Java?",
                 "Explain OOP concepts used in Java with real examples.",
@@ -122,118 +122,51 @@ class LLMEngine:
                 "What is exception handling? Difference between checked and unchecked exceptions.",
                 "Write a Java program to check whether a string is a palindrome."
             ]
-            
             ALL_FIXED_QUESTIONS = C_QUESTIONS + PYTHON_QUESTIONS + JAVA_QUESTIONS
 
-            # --- RESUME CONTEXT ---
             if context == "Resume":
                 skills_lower = [s.lower() for s in skills] if skills else []
                 eligible_pool = []
+                if any(x in skills_lower for x in ['c', 'c programming']): eligible_pool.extend(C_QUESTIONS)
+                if any(x in skills_lower for x in ['python']): eligible_pool.extend(PYTHON_QUESTIONS)
+                if any(x in skills_lower for x in ['java']): eligible_pool.extend(JAVA_QUESTIONS)
                 
-                # Build pool based on skills
-                if any(x in skills_lower for x in ['c', 'c programming', 'c language']):
-                    eligible_pool.extend(C_QUESTIONS)
-                if any(x in skills_lower for x in ['python', 'python3', 'python programming']):
-                    eligible_pool.extend(PYTHON_QUESTIONS)
-                if any(x in skills_lower for x in ['java', 'core java', 'java programming']):
-                    eligible_pool.extend(JAVA_QUESTIONS)
-                    
-                # Fallback to all if empty
-                if not eligible_pool:
-                    eligible_pool = ALL_FIXED_QUESTIONS
+                if not eligible_pool: eligible_pool = ALL_FIXED_QUESTIONS
                 
                 previous_qs = [h.get('q', '') for h in history]
                 available_qs = [q for q in eligible_pool if q not in previous_qs]
+                if available_qs: return random.choice(available_qs)
                 
-                if available_qs:
-                    return random.choice(available_qs)
-                    
-                role_description = "Hiring Manager"
-                task_instruction = f"Ask a tough technical question about: {', '.join(skills[:5])}"
-
-            # --- HR / COMMON CONTEXT ---
-            elif context == "Common" or context == "HR":
+            elif context in ["Common", "HR"]:
                 HR_QUESTIONS = [
                     "Tell me about yourself.",
                     "Why should we hire you?",
                     "Why do you want to work for our company?",
                     "Where do you see yourself in 5 years?",
                     "How do you handle pressure or stress?",
-                    "Describe a challenge you faced and how you overcame it.",
-                    "Are you willing to relocate or work flexible hours?",
-                    "Do you have any questions for us?"
+                    "Describe a challenge you faced and how you overcame it."
                 ]
+                if turn_count == 2: return "What are your strengths?"
                 
-                # FORCED 3rd QUESTION LOGIC
-                target_q3 = "What are your strengths?"
-                
-                if turn_count == 2: # 0, 1, 2(3rd)
-                    return target_q3
-
                 previous_qs_norm = set([h.get('q', '').strip().lower() for h in history])
-                
-                available_qs = []
-                for q in HR_QUESTIONS:
-                    if q == target_q3: 
-                        continue # Don't ask strengths early
-                    if q.strip().lower() not in previous_qs_norm:
-                        available_qs.append(q)
-                        
-                if available_qs:
-                    return random.choice(available_qs)
-                    
-                if HR_QUESTIONS:
-                    q = random.choice(HR_QUESTIONS)
-                    if q == target_q3 and turn_count != 2:
-                        return "Tell me about yourself." # Safety fallback
-                    return q
-                    
-                role_description = "HR Manager"
-                task_instruction = "Ask a behavioral interview question."
-
-            # --- DOMAIN CONTEXT ---
-            else:
-                role_description = f"Principal {context} Engineer"
-                task_instruction = f"Ask a challenging technical domain question about {context}."
-
-            # --- LLM FALLBACK GENERATION ---
-            variety_seed = random.randint(1, 100000)
-            prompt = f"""
-            Role: {role_description}
-            Context: {context}
-            Question {turn_count + 1}
-            {task_instruction}
-            History: {history_str}
+                available_qs = [q for q in HR_QUESTIONS if q.strip().lower() not in previous_qs_norm]
+                if available_qs: return random.choice(available_qs)
             
-            Instructions: Ask ONE clear question. No filler.
-            """
-            
+            # LLM FALLBACK
+            prompt = f"Role: Interviewer\nContext: {context}\nHistory: {history_str}\nAsk ONE clear question."
             res = self._generate_text(prompt, temperature=0.85)
-            if res and len(res.strip()) > 5:
-                # Basic check to avoid "undefined" strings or short errors
-                return res.strip()
-                
-            return "Describe your professional background."
+            return res.strip() if res and len(res.strip()) > 5 else "Describe your background."
 
         except Exception as e:
-            print(f"Error in generate_question: {e}", flush=True)
+            print(f"Error in generate_question: {e}")
             return "Tell me about your technical skills."
 
     def evaluate_answer(self, question, answer):
         prompt = f"""
-        Role: Interview Coach & Mentor.
-        Question Asked: {question}
-        Candidate Answer: {answer}
-        
-        Analyze the response.
-        
-        Requirements:
-        1. Feedback: Provide specific areas of improvement based on the answer.
-        2. Resources: Suggest 1-2 SPECIFIC resources (Book names, Topics to Google, or specific techniques) to improve this skill.
-        3. Rating: Rate out of 10.
-        
-        Output JSON Format ONLY:
-        {{"feedback": "Your answer was... Improve by... Suggested Resources: 1. ... 2. ...", "rating": 7}}
+        Analyze the interview answer.
+        Question: {question}
+        Answer: {answer}
+        Output JSON: {{"feedback": "string", "rating": number}}
         """
         res = self._generate_text(prompt, temperature=0.3)
         if res:
@@ -245,4 +178,4 @@ class LLMEngine:
                     return json.loads(clean_res[start:end])
             except:
                 pass
-        return {"feedback": "Good attempt. Try to structure your answer using the STAR method. Suggested Resources: 'Cracking the Coding Interview' or generic HR prep guides.", "rating": 6}
+        return {"feedback": "Good attempt. Try the STAR method.", "rating": 6}

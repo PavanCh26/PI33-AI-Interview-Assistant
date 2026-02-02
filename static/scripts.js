@@ -22,6 +22,7 @@ async function loginWithGoogle() {
         const result = await auth.signInWithPopup(googleProvider);
         const userFirebase = result.user;
         const idToken = await userFirebase.getIdToken();
+        console.log("Firebase Token Generated:", idToken.substring(0, 10) + "...");
 
         // Send to backend for verification and session creation
         const res = await fetch(API_BASE + "/auth/firebase", {

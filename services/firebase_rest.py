@@ -69,10 +69,8 @@ class FirebaseRest:
         return fields
 
     def get_document(self, collection_path, document_id):
-        """Fetches a document from Firestore using the REST API."""
+        """Fetches a document from Firestore. Returns data, None (if 404), or False (if error)."""
         try:
-            # Document ID might contain dots/signs, but Firestore handles them in URL path usually.
-            # However, ensure we lowercase email-based IDs for consistency.
             doc_id = str(document_id).lower()
             url = f"{self.base_url}/{collection_path}/{doc_id}?key={self.api_key}"
             response = requests.get(url, timeout=10)
@@ -80,13 +78,13 @@ class FirebaseRest:
                 data = response.json()
                 return {k: self._convert_value(v) for k, v in data.get('fields', {}).items()}
             elif response.status_code == 404:
-                return None # Normal for non-existent users
+                return None # Truly not found
             else:
-                print(f"DEBUG: Firestore Get failed. Path: {collection_path}/{doc_id}, Status: {response.status_code}, Response: {response.text}")
-            return None
+                print(f"DEBUG: Firestore Get Error {response.status_code}: {response.text}")
+                return False # Permission denied or other error
         except Exception as e:
-            print(f"Firestore Get Error: {e}")
-            return None
+            print(f"Firestore Get Exception: {e}")
+            return False
 
     def set_document(self, collection_path, document_id, data):
         """Creates or overwrites a document in Firestore."""

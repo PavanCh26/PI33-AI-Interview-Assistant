@@ -146,6 +146,9 @@ def auth_firebase():
         # Persistence with Firestore REST
         user_data = db_conn.get_document('users', email)
         
+        if user_data is False:
+             return jsonify({'error': 'Firebase Permission Error', 'message': 'Please update your Firestore security rules to allow REST access.'}), 403
+
         if not user_data:
             print(f"DEBUG: Creating new user record for {email}", flush=True)
             user_data = {
@@ -224,8 +227,11 @@ def save_profile():
         email = session.get('user_email', '').lower()
         
         current_user = db_conn.get_document('users', email)
+        if current_user is False:
+            return jsonify({'error': 'Firebase Permission Error', 'message': 'Please update your Firestore security rules.'}), 403
+            
         if not current_user:
-            return jsonify({'error': 'User not found'}), 404
+            return jsonify({'error': 'User record not found in database.'}), 404
             
         update_data = {
             'name': data.get('name', current_user.get('name')),

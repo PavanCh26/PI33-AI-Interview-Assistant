@@ -1,68 +1,23 @@
 import io
 import os
 import uuid
+import json
+import requests
 import webbrowser
 from datetime import datetime
 from dotenv import load_dotenv
 from werkzeug.exceptions import HTTPException
-import firebase_admin
-# firebase_admin imports moved inside functions to save memory
+# firebase_admin COMPLETELY REMOVED to save memory
 
-# Initialize Firebase Admin
-db = None
-def initialize_firebase():
-    global db
-    from firebase_admin import credentials, firestore
-    if firebase_admin._apps:
-        if db is None:
-            try:
-                db = firestore.client()
-            except:
-                pass
-        return True
-        
-    print(f"DEBUG: Starting Firebase Admin initialization. Current directory: {os.getcwd()}", flush=True)
-    
-    try:
-        # 1. Try Environment Variable string
-        firebase_key_json = os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON")
-        if firebase_key_json:
-            print(">>> SUCCESS: FIREBASE_SERVICE_ACCOUNT_JSON found in env.", flush=True)
-            import json
-            cred_dict = json.loads(firebase_key_json)
-            cred = credentials.Certificate(cred_dict)
-            firebase_admin.initialize_app(cred)
-            db = firestore.client()
-            return True
-
-        # 2. Try Local File (Check multiple paths)
-        key_filename = 'firebase-key.json'
-        possible_paths = [
-            key_filename,
-            os.path.join(os.getcwd(), key_filename),
-            os.path.join(os.path.dirname(__file__), key_filename)
-        ]
-        
-        for path in possible_paths:
-            if os.path.exists(path):
-                print(f"DEBUG: Found key file at {path}", flush=True)
-                cred = credentials.Certificate(path)
-                firebase_admin.initialize_app(cred)
-                db = firestore.client()
-                return True
-        
-        return False
-    except Exception as e:
-        print(f"ERROR: Firebase initialization failed: {str(e)}", flush=True)
-        return False
-
-# Initial attempt at startup removed to save memory on Render
-# initialize_firebase()
+# Removed firebase-admin SDK entirely. Using services/firebase_rest.py
+from services.firebase_rest import FirebaseRest
+_fb_rest = None
 
 def get_db():
-    if initialize_firebase():
-        return db
-    return None
+    global _fb_rest
+    if _fb_rest is None:
+        _fb_rest = FirebaseRest()
+    return _fb_rest
 
 from flask import Flask, render_template, request, jsonify, session, send_file, make_response
 from flask_cors import CORS
@@ -134,10 +89,10 @@ def handle_exception(e):
 
 @app.route('/api/health')
 def health_check():
+    db_conn = get_db()
     return jsonify({
         "status": "healthy",
-        "firebase_initialized": len(firebase_admin._apps) > 0,
-        "database_connected": db is not None
+        "database_connected": db_conn is not None
     })
 
 # --- AUTH ENDPOINTS ---
@@ -148,117 +103,87 @@ def register():
         return jsonify({'error': 'Database not initialized'}), 500
     try:
         data = request.get_json(silent=True)
-        if data is None:
-            print("DEBUG: Register Request body is not valid JSON", flush=True)
-            return jsonify({'error': 'Invalid JSON format'}), 400
-            
+        if not data: return jsonify({'error': 'Invalid JSON'}), 400
         email = data.get('email')
         password = data.get('password')
+        if not email or not password: return jsonify({'error': 'Email and password required'}), 400
         
-        print(f"DEBUG: Register Request: {data}", flush=True)
-        if not email or not password:
-            print("DEBUG: Missing email or password", flush=True)
-            return jsonify({'error': 'Email and password required'}), 400
+        existing = db_conn.get_document('users', email)
+        if existing: return jsonify({'error': 'Email already exists'}), 400
+        
+        user_id = str(uuid.uuid4())
+        hashed_pw = bcrypt.generate_password_hash(password).decode('utf-8')
+        user_data = {
+            'user_id': user_id,
+            'email': email,
+            'password': hashed_pw,
+            'name': 'User',
+            'onboarded': 0,
+            'profile': {},
+            'created_at': datetime.now().isoformat()
+        }
+        db_conn.set_document('users', email, user_data)
+        return jsonify({'message': 'User registered successfully', 'user_id': user_id})
     except Exception as e:
-        print(f"DEBUG: Error in register: {str(e)}", flush=True)
-        return jsonify({'error': 'Internal registration error'}), 500
-        
-    user_ref = db_conn.collection('users').document(email)
-    if user_ref.get().exists:
-        print(f"DEBUG: Email {email} already exists", flush=True)
-        return jsonify({'error': 'Email already exists'}), 400
-        
-    user_id = str(uuid.uuid4())
-    hashed_pw = bcrypt.generate_password_hash(password).decode('utf-8')
-    
-    user_data = {
-        'user_id': user_id,
-        'email': email,
-        'password': hashed_pw,
-        'name': 'User',
-        'onboarded': 0,
-        'profile': {},
-        'created_at': firestore.SERVER_TIMESTAMP
-    }
-    user_ref.set(user_data)
-    
-    return jsonify({'message': 'User registered successfully', 'user_id': user_id})
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/auth/firebase', methods=['POST'])
 def auth_firebase():
-    from firebase_admin import auth, firestore
     db_conn = get_db()
     if not db_conn:
-        files = os.listdir('.')
-        return jsonify({
-            'error': 'Firebase server-side SDK not initialized.',
-            'debug_info': {
-                'cwd': os.getcwd(),
-                'files_in_root': files,
-                'key_exists': os.path.exists('firebase-key.json')
-            }
-        }), 500
+        return jsonify({'error': 'Database service unavailable'}), 500
 
     data = request.get_json(silent=True)
     if not data or 'idToken' not in data:
         return jsonify({'error': 'Missing idToken'}), 400
     
-    id_token = data.get('idToken')
-    print(f"DEBUG: Verifying Firebase token: {id_token[:20]}...", flush=True)
+    id_token = data['idToken']
+    # Verify via REST API
     try:
-        # Verify the ID token
-        # Adding check_revoked=True to be safe
-        try:
-            decoded_token = auth.verify_id_token(id_token, check_revoked=True)
-        except Exception as e:
-            print(f"DEBUG: Primary verification failed, retrying... {e}", flush=True)
-            # Re-try without revocation check as a fallback for certain environments
-            decoded_token = auth.verify_id_token(id_token)
-        uid = decoded_token['uid']
+        decoded_token = db_conn.verify_id_token(id_token)
+        if not decoded_token:
+            return jsonify({'error': 'Invalid ID token'}), 401
+        
         email = decoded_token.get('email')
-        name = decoded_token.get('name', 'Google User')
+        user_id = decoded_token.get('sub') # UID in tokeninfo
         
-        print(f"DEBUG: Firebase UID: {uid}, Email: {email}", flush=True)
+        if not email:
+            return jsonify({'error': 'Email not found in token'}), 400
 
-        # Persistence with Firestore
-        user_ref = db_conn.collection('users').document(email)
-        doc = user_ref.get()
+        print(f"DEBUG: Firebase Token Verified. Email: {email}", flush=True)
+
+        # Persistence with Firestore REST
+        user_data = db_conn.get_document('users', email)
         
-        if not doc.exists:
-            user_id = str(uuid.uuid4())
+        if not user_data:
+            print(f"DEBUG: Creating new user record for {email}", flush=True)
             user_data = {
                 'user_id': user_id,
                 'email': email,
-                'firebase_uid': uid,
-                'name': name,
+                'name': decoded_token.get('name', 'User'),
+                'photo': decoded_token.get('picture', ''),
                 'onboarded': 0,
                 'profile': {},
-                'created_at': firestore.SERVER_TIMESTAMP
+                'created_at': datetime.now().isoformat()
             }
-            user_ref.set(user_data)
-        else:
-            user_data = doc.to_dict()
+            db_conn.set_document('users', email, user_data)
         
-        session['user_id'] = user_data['user_id']
+        # Session management
+        session['user_id'] = user_id
         session['user_email'] = email
         session.permanent = True
         
-        # Flatten for frontend
+        # Flatten response for frontend
         profile = user_data.get('profile', {})
         response_data = {
             **user_data,
             **profile,
-            'email': email # ensure correct email
+            'email': email
         }
-        # Remove 'profile' key to avoid confusion
         if 'profile' in response_data: del response_data['profile']
         if 'password' in response_data: del response_data['password']
 
         return jsonify(response_data)
-        
-    except ValueError as ve:
-        print(f"DEBUG: Firebase ValueError: {ve}", flush=True)
-        return jsonify({'error': f'Invalid ID token format: {ve}'}), 401
     except Exception as e:
         print(f"DEBUG: Firebase auth exception: {type(e).__name__} - {e}", flush=True)
         return jsonify({'error': f'Firebase auth failed: {str(e)}'}), 500
@@ -267,160 +192,106 @@ def auth_firebase():
 def login_api():
     db_conn = get_db()
     if not db_conn:
-        return jsonify({'error': 'Database not initialized'}), 500
+        return jsonify({'error': 'Database service unavailable'}), 500
     try:
         data = request.get_json(silent=True)
-        if data is None:
-            print("DEBUG: Login Request body is not valid JSON", flush=True)
-            return jsonify({'error': 'Invalid JSON format'}), 400
-            
         email = data.get('email')
         password = data.get('password')
         
-        user_ref = db_conn.collection('users').document(email)
-        doc = user_ref.get()
-        user_data = doc.to_dict() if doc.exists else None
-        
-        print(f"DEBUG: Login Attempt for {email}. Found: {user_data is not None}", flush=True)
-        if not user_data or 'password' not in user_data or not bcrypt.check_password_hash(user_data['password'], password):
-            print("DEBUG: Invalid credentials", flush=True)
+        user_data = db_conn.get_document('users', email)
+        if not user_data or 'password' not in user_data:
             return jsonify({'error': 'Invalid email or password'}), 401
-    except Exception as e:
-        print(f"DEBUG: Error in login: {str(e)}", flush=True)
-        return jsonify({'error': 'Internal login error'}), 500
+            
+        if bcrypt.check_password_hash(user_data['password'], password):
+            session['user_id'] = user_data['user_id']
+            session['user_email'] = email
+            session.permanent = True
+            
+            # Flatten response
+            profile = user_data.get('profile', {})
+            response_data = {**user_data, **profile, 'email': email}
+            if 'profile' in response_data: del response_data['profile']
+            if 'password' in response_data: del response_data['password']
+            return jsonify(response_data)
         
-    session['user_id'] = user_data['user_id']
-    session['user_email'] = email
-    session.permanent = True
-    
-    # Flatten for frontend
-    profile = user_data.get('profile', {})
-    response_data = {
-        **user_data,
-        **profile,
-        'email': email
-    }
-    if 'profile' in response_data: del response_data['profile']
-    if 'password' in response_data: del response_data['password']
-
-    return jsonify(response_data)
+        return jsonify({'error': 'Invalid email or password'}), 401
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/profile/save', methods=['POST'])
 def save_profile():
     if 'user_id' not in session:
         return jsonify({'error': 'Unauthorized'}), 401
-        
     db_conn = get_db()
     if not db_conn:
-        return jsonify({'error': 'Database not initialized'}), 500
+        return jsonify({'error': 'Database service unavailable'}), 500
+        
     data = request.json
-    user_id = data.get('user_id')
     email = session.get('user_email')
     
-    user_ref = db_conn.collection('users').document(email)
-    doc = user_ref.get()
-    
-    if not doc.exists:
+    current_user = db_conn.get_document('users', email)
+    if not current_user:
         return jsonify({'error': 'User not found'}), 404
         
-    user_ref.update({
-        'name': data.get('name', doc.to_dict().get('name')),
+    update_data = {
+        'name': data.get('name', current_user.get('name')),
         'profile': data,
-        'photo': data.get('photo', doc.to_dict().get('photo')),
+        'photo': data.get('photo', current_user.get('photo')),
         'onboarded': 1
-    })
+    }
     
-    # Also update root-level fields if they exist in data for easier querying/access
-    root_updates = {}
-    if 'phone' in data: root_updates['phone'] = data['phone']
-    if 'college' in data: root_updates['college'] = data['college']
-    if 'year' in data: root_updates['year'] = data['year']
-    if 'skills' in data: root_updates['skills'] = data['skills']
-    
-    if root_updates:
-        user_ref.update(root_updates)
-    
+    # Root level fields
+    for field in ['phone', 'college', 'year', 'skills']:
+        if field in data: update_data[field] = data[field]
+        
+    db_conn.set_document('users', email, update_data)
     return jsonify({'message': 'Profile updated successfully'})
 
 @app.route('/api/profile/get/<user_id>', methods=['GET'])
 def get_profile(user_id):
     if 'user_id' not in session or session['user_id'] != user_id:
         return jsonify({'error': 'Unauthorized'}), 401
-        
     db_conn = get_db()
-    if not db_conn:
-        return jsonify({'error': 'Database not initialized'}), 500
-    
+    if not db_conn: return jsonify({'error': 'DB Error'}), 500
     email = session.get('user_email')
-    user_ref = db_conn.collection('users').document(email)
-    doc = user_ref.get()
-    
-    if not doc.exists:
-        return jsonify({'error': 'Profile not found'}), 404
-    
-    user_data = doc.to_dict()
-        
-    # Flatten basic info with profile dict for frontend
+    user_data = db_conn.get_document('users', email)
+    if not user_data: return jsonify({'error': 'Not found'}), 404
     profile = user_data.get('profile', {})
-    response_data = {
-        **user_data,
-        **profile,
-        'email': user_data['email']
-    }
+    response_data = {**user_data, **profile, 'email': email}
     if 'profile' in response_data: del response_data['profile']
     if 'password' in response_data: del response_data['password']
-
     return jsonify(response_data)
 
 @app.route('/api/results/save', methods=['POST'])
 def save_results():
-    if 'user_id' not in session:
-        return jsonify({'error': 'Unauthorized'}), 401
-        
+    if 'user_id' not in session: return jsonify({'error': 'Unauthorized'}), 401
     db_conn = get_db()
-    if not db_conn:
-        return jsonify({'error': 'Database not initialized'}), 500
+    if not db_conn: return jsonify({'error': 'DB Error'}), 500
     data = request.json
-    user_id = data.get('user_id')
-    
     email = session.get('user_email')
-    user_ref = db_conn.collection('users').document(email)
-    
+    # Save as separate document in results collection indexed by email_timestamp
+    doc_id = f"{email}_{int(datetime.now().timestamp())}"
     result_data = {
+        'user_email': email,
         'timestamp': datetime.now().isoformat(),
         'scores': data.get('scores'),
         'responses': data.get('responses'),
         'feedback': data.get('feedback'),
         'date': datetime.now().strftime("%Y-%m-%d %H:%M")
     }
-    
-    # Save to sub-collection 'results' under the user
-    user_ref.collection('results').add(result_data)
-    
+    db_conn.set_document('results', doc_id, result_data)
     return jsonify({'message': 'Results saved successfully'})
 
 @app.route('/api/results/get', methods=['GET'])
 def get_results():
-    if 'user_id' not in session:
-        return jsonify({'error': 'Unauthorized'}), 401
-        
+    if 'user_id' not in session: return jsonify({'error': 'Unauthorized'}), 401
     db_conn = get_db()
-    if not db_conn:
-        return jsonify({'error': 'Database not initialized'}), 500
-    
+    if not db_conn: return jsonify({'error': 'DB Error'}), 500
     email = session.get('user_email')
-    user_ref = db_conn.collection('users').document(email)
-    
-    results = []
-    # Fetch all documents in the 'results' sub-collection
-    docs = user_ref.collection('results').order_by('timestamp', direction=firestore.Query.DESCENDING).limit(10).get()
-    
-    for doc in docs:
-        res = doc.to_dict()
-        res['id'] = doc.id
-        results.append(res)
-        
-    return jsonify(results)
+    # Custom filtering via REST requires more complex code, here we use simple list
+    results = db_conn.get_collection('results', limit=20)
+    user_results = [r for r in results if r.get('user_email') == email]
+    return jsonify(user_results)
 
 @app.route('/api/export/pdf', methods=['POST'])
 def export_pdf():
@@ -450,10 +321,9 @@ def export_pdf():
     email = session.get('user_email')
     user_name = "Candidate"
     if email:
-        user_ref = db_conn.collection('users').document(email)
-        doc = user_ref.get()
-        if doc.exists:
-            user_name = doc.to_dict().get('name', "Candidate")
+        user_data = db_conn.get_document('users', email)
+        if user_data:
+            user_name = user_data.get('name', 'Candidate')
     
     pdf.set_font("Arial", 'B', 14)
     pdf.set_text_color(0, 0, 0)

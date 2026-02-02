@@ -5,5 +5,4 @@ flask-cors
 flask-bcrypt
 fpdf2
 gunicorn
-firebase-admin
 requests

@@ -5,4 +5,3 @@ __pycache__/
 .env
 git_installer.exe
 .vscode/
-firebase-key.json

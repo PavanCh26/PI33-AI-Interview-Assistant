@@ -304,6 +304,44 @@ function updateProfileUI() {
         if (document.getElementById('user-photo')) document.getElementById('user-photo').src = photoUrl;
         if (document.getElementById('edit-photo-preview')) document.getElementById('edit-photo-preview').src = photoUrl;
     }
+    loadHistory();
+}
+
+async function loadHistory() {
+    const list = document.getElementById('history-list');
+    if (!list) return;
+
+    try {
+        const res = await fetch(API_BASE + "/results/get", { credentials: 'include' });
+        const data = await res.json();
+
+        if (data.length === 0) {
+            list.innerHTML = `<p style="color: #94a3b8; font-style: italic;">No interview reports found yet. Complete an interview to see your results here!</p>`;
+            return;
+        }
+
+        list.innerHTML = data.map(item => `
+            <div class="card" style="padding: 1.5rem; border-left: 4px solid var(--primary);">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                    <div>
+                        <h4 style="margin-bottom: 0.25rem;">${item.date || 'Past Session'}</h4>
+                        <p style="font-size: 0.8rem; color: #64748b;">${item.responses ? item.responses.length : 0} Questions Answered</p>
+                    </div>
+                    <div style="background: #e0e7ff; color: #4338ca; padding: 0.25rem 0.5rem; border-radius: 0.5rem; font-weight: 700; font-size: 0.8rem;">
+                        Rating: ${item.scores ? item.scores.interview : (item.score_interview || 'N/A')}
+                    </div>
+                </div>
+                <button class="btn btn-secondary" style="width: 100%; margin-top: 1rem; padding: 0.5rem; font-size: 0.8rem;" 
+                    onclick="viewPastReport('${item.id}')">View Details</button>
+            </div>
+        `).join('');
+    } catch (e) {
+        console.error("History load error:", e);
+    }
+}
+
+function viewPastReport(id) {
+    alert("Full history detail view coming soon! You can export new reports as PDF for now.");
 }
 
 function openProfileEdit() {

@@ -18,7 +18,7 @@
 
     <!-- DOMAIN MODAL -->
     <div id="domain-modal" class="modal-overlay">
-        <div class="modal-content">
+        <div class="modal-content" style="max-height: 90vh; overflow-y: auto;">
             <h2 style="margin-bottom: 0.5rem;">Select Your Domain</h2>
             <p style="margin-bottom: 2rem;">Choose a specialized field to customize your technical interview questions.
             </p>
@@ -95,7 +95,7 @@
 
     <!-- ONBOARDING -->
     <div id="onboarding-screen" class="modal-overlay">
-        <div class="modal-content">
+        <div class="modal-content" style="max-height: 90vh; overflow-y: auto;">
             <h2>Complete Your Profile</h2>
             <p style="margin-bottom: 2.5rem;">Join the elite candidates preparing with PI33.</p>
 
@@ -141,6 +141,7 @@
 
                 <div id="profile-menu" class="dropdown-menu">
                     <button class="dropdown-item" onclick="openProfileEdit()">Personal Details</button>
+                    <button class="dropdown-item" onclick="startModule('resume')">Update Resume</button>
                     <button class="dropdown-item" onclick="logout()">Sign Out</button>
                 </div>
             </div>
@@ -180,6 +181,19 @@
                 <h3 style="margin-bottom: 0.75rem;">HR & Behavioral</h3>
                 <p>Perfect your storytelling with situational questions and common HR interview simulations.</p>
                 <button class="btn btn-secondary" style="margin-top: 2rem; width: 100%;">Start Practice</button>
+            </div>
+        </section>
+
+        <!-- PERFORMANCE HISTORY SECTION -->
+        <section id="history-section" style="margin-top: 3rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <h2 style="font-size: 1.5rem;">Your Interview History</h2>
+                <button class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.5rem 1rem;"
+                    onclick="loadHistory()">Refresh History</button>
+            </div>
+            <div id="history-list" class="grid-cols" style="gap: 1.5rem;">
+                <p style="color: #94a3b8; font-style: italic;">No interview reports found yet. Complete an interview to
+                    see your results here!</p>
             </div>
         </section>
 
@@ -276,7 +290,7 @@
 
     <!-- PROFILE EDIT MODAL -->
     <div id="profile-edit-modal" class="modal-overlay">
-        <div class="modal-content" style="max-width: 650px;">
+        <div class="modal-content" style="max-width: 650px; max-height: 90vh; overflow-y: auto;">
             <h2 style="margin-bottom: 0.5rem;">Personal Details</h2>
             <p style="margin-bottom: 2rem;">Keep your profile updated for better interview matching.</p>
 

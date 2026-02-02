@@ -210,13 +210,18 @@ def auth_firebase():
         session['user_email'] = email
         session.permanent = True
         
-        return jsonify({
-            'user_id': user_data['user_id'],
-            'email': email,
-            'name': user_data['name'],
-            'onboarded': user_data['onboarded'],
-            'profile': user_data.get('profile', {})
-        })
+        # Flatten for frontend
+        profile = user_data.get('profile', {})
+        response_data = {
+            **user_data,
+            **profile,
+            'email': email # ensure correct email
+        }
+        # Remove 'profile' key to avoid confusion
+        if 'profile' in response_data: del response_data['profile']
+        if 'password' in response_data: del response_data['password']
+
+        return jsonify(response_data)
         
     except ValueError as ve:
         print(f"DEBUG: Firebase ValueError: {ve}", flush=True)
@@ -252,12 +257,17 @@ def login_api():
     session['user_email'] = email
     session.permanent = True
     
-    return jsonify({
-        'message': 'Login successful',
-        'user_id': user_data['user_id'],
-        'name': user_data['name'],
-        'onboarded': user_data['onboarded']
-    })
+    # Flatten for frontend
+    profile = user_data.get('profile', {})
+    response_data = {
+        **user_data,
+        **profile,
+        'email': email
+    }
+    if 'profile' in response_data: del response_data['profile']
+    if 'password' in response_data: del response_data['password']
+
+    return jsonify(response_data)
 
 @app.route('/api/profile/save', methods=['POST'])
 def save_profile():
@@ -280,6 +290,16 @@ def save_profile():
         'onboarded': 1
     })
     
+    # Also update root-level fields if they exist in data for easier querying/access
+    root_updates = {}
+    if 'phone' in data: root_updates['phone'] = data['phone']
+    if 'college' in data: root_updates['college'] = data['college']
+    if 'year' in data: root_updates['year'] = data['year']
+    if 'skills' in data: root_updates['skills'] = data['skills']
+    
+    if root_updates:
+        user_ref.update(root_updates)
+    
     return jsonify({'message': 'Profile updated successfully'})
 
 @app.route('/api/profile/get/<user_id>', methods=['GET'])
@@ -296,16 +316,17 @@ def get_profile(user_id):
     
     user_data = doc.to_dict()
         
-    # Merge basic info with profile dict for frontend
-    profile = {
-        **user_data.get('profile', {}), 
-        'user_id': user_data['user_id'], 
-        'email': user_data['email'], 
-        'name': user_data['name'], 
-        'onboarded': user_data['onboarded'],
-        'photo': user_data.get('photo')
+    # Flatten basic info with profile dict for frontend
+    profile = user_data.get('profile', {})
+    response_data = {
+        **user_data,
+        **profile,
+        'email': user_data['email']
     }
-    return jsonify(profile)
+    if 'profile' in response_data: del response_data['profile']
+    if 'password' in response_data: del response_data['password']
+
+    return jsonify(response_data)
 
 @app.route('/api/results/save', methods=['POST'])
 def save_results():
@@ -329,6 +350,25 @@ def save_results():
     user_ref.collection('results').add(result_data)
     
     return jsonify({'message': 'Results saved successfully'})
+
+@app.route('/api/results/get', methods=['GET'])
+def get_results():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    email = session.get('user_email')
+    user_ref = db.collection('users').document(email)
+    
+    results = []
+    # Fetch all documents in the 'results' sub-collection
+    docs = user_ref.collection('results').order_by('timestamp', direction=firestore.Query.DESCENDING).limit(10).get()
+    
+    for doc in docs:
+        res = doc.to_dict()
+        res['id'] = doc.id
+        results.append(res)
+        
+    return jsonify(results)
 
 @app.route('/api/export/pdf', methods=['POST'])
 def export_pdf():

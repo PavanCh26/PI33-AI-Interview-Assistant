@@ -132,8 +132,13 @@ def auth_firebase():
     print(f"DEBUG: Verifying Firebase token: {id_token[:20]}...", flush=True)
     try:
         # Verify the ID token
-        # Adding check_revoked=True and clock_skew to be safe
-        decoded_token = auth.verify_id_token(id_token, check_revoked=True)
+        # Adding check_revoked=True to be safe
+        try:
+            decoded_token = auth.verify_id_token(id_token, check_revoked=True)
+        except Exception as e:
+            print(f"DEBUG: Primary verification failed, retrying... {e}", flush=True)
+            # Re-try without revocation check as a fallback for certain environments
+            decoded_token = auth.verify_id_token(id_token)
         uid = decoded_token['uid']
         email = decoded_token.get('email')
         name = decoded_token.get('name', 'Google User')

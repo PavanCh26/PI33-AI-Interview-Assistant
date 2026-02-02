@@ -140,9 +140,9 @@
                 <span style="font-size: 0.7rem; color: #94a3b8;">▼</span>
 
                 <div id="profile-menu" class="dropdown-menu">
-                    <button class="dropdown-item" onclick="openProfileEdit()">Personal Details</button>
-                    <button class="dropdown-item" onclick="startModule('resume')">Update Resume</button>
-                    <button class="dropdown-item" onclick="logout()">Sign Out</button>
+                    <button class="dropdown-item" onclick="goBack()">🏠 Go to Dashboard</button>
+                    <button class="dropdown-item" onclick="openProfileEdit()">👤 Personal Details</button>
+                    <button class="dropdown-item" onclick="logout()">🚪 Sign Out</button>
                 </div>
             </div>
         </header>
@@ -326,6 +326,17 @@
                 <input type="text" id="edit-skills">
             </div>
 
+            <div class="form-group" style="margin-top: 1rem;">
+                <label>Resume (Optional)</label>
+                <div style="display: flex; gap: 1rem; align-items: center;">
+                    <button class="btn btn-secondary" style="font-size: 0.8rem;"
+                        onclick="document.getElementById('edit-resume-input').click()">Update Resume File</button>
+                    <span id="edit-resume-filename" style="font-size: 0.8rem; color: #94a3b8;">No file chosen</span>
+                </div>
+                <input type="file" id="edit-resume-input" hidden accept="application/pdf"
+                    onchange="handleEditResumeUpload(event)">
+            </div>
+
             <div style="display: flex; gap: 1rem; margin-top: 2rem;">
                 <button class="btn btn-secondary" style="flex: 1;" onclick="closeModals()">Cancel</button>
                 <button class="btn btn-primary" style="flex: 1;" onclick="savePersonalDetails()">Save Changes</button>
@@ -338,6 +349,33 @@
             50% {
                 opacity: 0.3;
             }
+        }
+
+        .circle-score {
+            position: relative;
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            background: conic-gradient(var(--primary) calc(var(--percent) * 1%), #e2e8f0 0);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto;
+        }
+
+        .circle-score::after {
+            content: attr(data-score);
+            position: absolute;
+            width: 58px;
+            height: 58px;
+            background: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 1.1rem;
+            color: var(--text-dark);
         }
     </style>
 

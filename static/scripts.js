@@ -320,23 +320,48 @@ async function loadHistory() {
             return;
         }
 
-        list.innerHTML = data.map(item => `
-            <div class="card" style="padding: 1.5rem; border-left: 4px solid var(--primary);">
-                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                    <div>
-                        <h4 style="margin-bottom: 0.25rem;">${item.date || 'Past Session'}</h4>
-                        <p style="font-size: 0.8rem; color: #64748b;">${item.responses ? item.responses.length : 0} Questions Answered</p>
-                    </div>
-                    <div style="background: #e0e7ff; color: #4338ca; padding: 0.25rem 0.5rem; border-radius: 0.5rem; font-weight: 700; font-size: 0.8rem;">
-                        Rating: ${item.scores ? item.scores.interview : (item.score_interview || 'N/A')}
-                    </div>
+        list.innerHTML = data.map(item => {
+            const score = item.scores ? item.scores.interview : (item.score_interview || 7);
+            const percent = score * 10;
+            return `
+            <div class="card" style="padding: 1.5rem; border-left: 4px solid var(--primary); display: flex; align-items: center; gap: 1.5rem;">
+                <div class="circle-score" style="--percent: ${percent}" data-score="${score}"></div>
+                <div style="flex: 1;">
+                    <h4 style="margin-bottom: 0.25rem;">${item.date || 'Past Session'}</h4>
+                    <p style="font-size: 0.8rem; color: #64748b; margin-bottom: 0.75rem;">${item.responses ? item.responses.length : 0} Questions Answered</p>
+                    <button class="btn btn-secondary" style="width: 100%; padding: 0.5rem; font-size: 0.8rem;" 
+                        onclick="viewPastReport('${item.id}')">View Details</button>
                 </div>
-                <button class="btn btn-secondary" style="width: 100%; margin-top: 1rem; padding: 0.5rem; font-size: 0.8rem;" 
-                    onclick="viewPastReport('${item.id}')">View Details</button>
             </div>
-        `).join('');
+            `;
+        }).join('');
     } catch (e) {
         console.error("History load error:", e);
+    }
+}
+async function handleEditResumeUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    document.getElementById('edit-resume-filename').innerText = file.name;
+
+    const formData = new FormData();
+    formData.append('resume', file);
+    try {
+        const res = await fetch(API_BASE + "/upload", {
+            method: 'POST',
+            body: formData,
+            credentials: 'include'
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        currentSessionId = data.session_id;
+        if (data.skills) {
+            const currentSkills = document.getElementById('edit-skills').value;
+            const newSkills = data.skills.join(', ');
+            document.getElementById('edit-skills').value = currentSkills ? currentSkills + ", " + newSkills : newSkills;
+        }
+    } catch (err) {
+        alert("Resume update failed: " + err.message);
     }
 }
 
@@ -429,15 +454,19 @@ function startModule(type) {
 
     if (type === 'resume') {
         currentDomain = null;
+        currentSessionId = null; // Always reset session for resume interview
+        intIdx = 0;
+        feedbackLog.length = 0;
+        interviewRatings.length = 0;
         document.getElementById('int-title').innerText = "Resume Based Interview";
-        if (currentSessionId) {
-            setStep(2);
-        } else {
-            document.getElementById('main-progress').classList.remove('hidden');
-            document.getElementById('step-label').style.display = 'block';
-            document.getElementById('step-label').innerText = "Upload Resume";
-            setStep(1);
-        }
+        document.getElementById('scrolling-chat').innerHTML = '';
+
+        // Reset upload UI
+        document.getElementById('upload-status-text').innerText = "Drop your PDF file here";
+        document.getElementById('upload-status-icon').innerText = "📤";
+        document.getElementById('resume-next-btn').disabled = true;
+
+        setStep(1);
     } else if (type === 'domain') {
         document.getElementById('domain-modal').style.display = 'flex';
     } else if (type === 'common') {

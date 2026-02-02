@@ -55,7 +55,7 @@ async function loginWithGoogle() {
             updateProfileUI();
         }
     } catch (err) {
-        alert("Google Login Failed: " + err.message);
+        alert("[AUTH_FIREBASE] Google Login Failed: " + err.message);
     }
 }
 
@@ -291,7 +291,7 @@ async function completeOnboarding() {
         document.getElementById('main-app').classList.remove('hidden');
         updateProfileUI();
     } catch (err) {
-        alert("Failed to save profile: " + err.message);
+        alert("[PROFILE_SAVE_ONBOARDING] Failed to save profile: " + err.message);
     }
 }
 
@@ -396,7 +396,7 @@ async function savePersonalDetails() {
         closeModals();
         updateProfileUI();
     } catch (err) {
-        alert("Failed to save: " + err.message);
+        alert("[PROFILE_SAVE_EDIT] Failed to save: " + err.message);
     }
 }
 

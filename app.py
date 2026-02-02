@@ -3,7 +3,6 @@ import os
 import uuid
 import json
 import requests
-import webbrowser
 from datetime import datetime
 from dotenv import load_dotenv
 from werkzeug.exceptions import HTTPException
@@ -34,16 +33,8 @@ app.config.update(
 )
 
 # Enable CORS allowing local origins for preview.html
-CORS(app, supports_credentials=True, origins=[
-    "http://localhost:5000",
-    "http://127.0.0.1:5000",
-    "http://localhost:5500",
-    "http://127.0.0.1:5500",
-    "http://localhost:5501",
-    "http://127.0.0.1:5501",
-    "http://localhost:3000",
-    "http://127.0.0.1:3000"
-])
+# Enable CORS for all local and production origins
+CORS(app, supports_credentials=True, origins="*")
 bcrypt = Bcrypt(app)
 
 # --- IN-MEMORY STORAGE ---
@@ -226,26 +217,32 @@ def save_profile():
     if not db_conn:
         return jsonify({'error': 'Database service unavailable'}), 500
         
-    data = request.json
-    email = session.get('user_email')
-    
-    current_user = db_conn.get_document('users', email)
-    if not current_user:
-        return jsonify({'error': 'User not found'}), 404
+    try:
+        data = request.get_json(silent=True)
+        if not data: return jsonify({'error': 'No data received'}), 400
         
-    update_data = {
-        'name': data.get('name', current_user.get('name')),
-        'profile': data,
-        'photo': data.get('photo', current_user.get('photo')),
-        'onboarded': 1
-    }
-    
-    # Root level fields
-    for field in ['phone', 'college', 'year', 'skills']:
-        if field in data: update_data[field] = data[field]
+        email = session.get('user_email')
         
-    db_conn.set_document('users', email, update_data)
-    return jsonify({'message': 'Profile updated successfully'})
+        current_user = db_conn.get_document('users', email)
+        if not current_user:
+            return jsonify({'error': 'User not found'}), 404
+            
+        update_data = {
+            'name': data.get('name', current_user.get('name')),
+            'profile': data,
+            'photo': data.get('photo', current_user.get('photo')),
+            'onboarded': 1
+        }
+        
+        # Root level fields
+        for field in ['phone', 'college', 'year', 'skills']:
+            if field in data: update_data[field] = data[field]
+            
+        db_conn.set_document('users', email, update_data)
+        return jsonify({'message': 'Profile updated successfully'})
+    except Exception as e:
+        print(f"DEBUG: Profile save error: {e}", flush=True)
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/profile/get/<user_id>', methods=['GET'])
 def get_profile(user_id):

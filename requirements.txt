@@ -1,0 +1,9 @@
+flask
+pypdf
+python-dotenv
+google-generativeai
+openai
+marshmallow
+flask-cors
+flask-bcrypt
+fpdf2

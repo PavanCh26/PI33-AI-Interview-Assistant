@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Interview Prep | NRCM</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=1.5">
+</head>
+
+<body>
+
+    <!-- DOMAIN MODAL -->
+    <div id="domain-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h2 style="margin-bottom: 0.5rem;">Select Your Domain</h2>
+            <p style="margin-bottom: 2rem;">Choose a specialized field to customize your technical interview questions.
+            </p>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <button class="btn btn-secondary" onclick="selectDomain('AI')">Artificial Intelligence</button>
+                <button class="btn btn-secondary" onclick="selectDomain('ML')">Machine Learning</button>
+                <button class="btn btn-secondary" onclick="selectDomain('GenAI')">Generative AI</button>
+                <button class="btn btn-secondary" onclick="selectDomain('VLSI')">VLSI Design</button>
+                <button class="btn btn-secondary" onclick="selectDomain('Embedded')">Embedded Systems</button>
+                <button class="btn btn-secondary" onclick="selectDomain('SoftwareDev')">Software Development</button>
+            </div>
+            <button class="btn btn-secondary" style="width: 100%; margin-top: 2rem;"
+                onclick="closeModals()">Cancel</button>
+        </div>
+    </div>
+
+    <!-- LANDING PAGE -->
+    <div id="landing-page" class="landing-hero">
+        <div class="hero-card">
+            <img src="{{ url_for('static', filename='logo_landing.png') }}" alt="NRCM Logo"
+                style="width: 380px; margin-bottom: 2.5rem; object-fit: contain;">
+            <div
+                style="display: inline-block; padding: 0.5rem 1rem; background: #e0e7ff; color: #4338ca; border-radius: 99px; font-weight: 700; font-size: 0.75rem; text-transform: uppercase; margin-bottom: 1rem;">
+                Advanced AI Recruitment Tool
+            </div>
+            <h1>The Future of Interview Preparation</h1>
+            <p>Master your technical and HR rounds with real-time AI simulations, personalized feedback, and interactive
+                domain-specific rounds.</p>
+            <button class="btn btn-primary" style="padding: 1.25rem 3rem; font-size: 1.1rem; border-radius: 1rem;"
+                onclick="openLogin()">Get Started Now</button>
+            <div style="margin-top: 3rem; font-size: 0.8rem; font-weight: 600; color: #94a3b8; letter-spacing: 0.1em;">
+                TRUSTED BY 10,000+ CANDIDATES</div>
+        </div>
+    </div>
+
+    <!-- LOGIN SCREEN -->
+    <div id="login-screen" class="modal-overlay">
+        <div class="modal-content" style="max-width: 450px;">
+            <h2 id="auth-title" style="text-align: center; margin-bottom: 0.5rem;">Welcome Back</h2>
+            <p id="auth-subtitle" style="text-align: center; margin-bottom: 2.5rem;">Sign in to your candidate dashboard
+            </p>
+
+            <div class="form-group">
+                <label>Email Address</label>
+                <input type="email" id="login-email" placeholder="e.g. pavan@college.edu">
+            </div>
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" id="login-password" placeholder="••••••••">
+            </div>
+
+            <button id="auth-btn" class="btn btn-primary" style="width: 100%; margin-top: 1rem;"
+                onclick="handleAuth()">Sign In</button>
+
+            <p style="margin-top: 2rem; text-align: center; font-size: 0.9rem;">
+                <span id="auth-toggle-text">Don't have an account?</span>
+                <a href="javascript:void(0)" id="auth-toggle-btn" onclick="toggleAuthMode()"
+                    style="color: var(--primary); font-weight: 700; text-decoration: none;">Create One</a>
+            </p>
+        </div>
+    </div>
+
+    <!-- ONBOARDING -->
+    <div id="onboarding-screen" class="modal-overlay">
+        <div class="modal-content">
+            <h2>Complete Your Profile</h2>
+            <p style="margin-bottom: 2.5rem;">Join the elite candidates preparing with PI33.</p>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div class="form-group">
+                    <label>Full Name</label>
+                    <input type="text" id="ob-name" placeholder="Full Name">
+                </div>
+                <div class="form-group">
+                    <label>Phone Number</label>
+                    <input type="text" id="ob-phone" placeholder="Phone">
+                </div>
+                <div class="form-group">
+                    <label>College</label>
+                    <input type="text" id="ob-college" placeholder="College Name">
+                </div>
+                <div class="form-group">
+                    <label>Graduation Year</label>
+                    <input type="number" id="ob-year" value="2024">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Technical Skills</label>
+                <input type="text" id="ob-skills" placeholder="e.g. Python, VLSI, SQL">
+            </div>
+
+            <button class="btn btn-primary" style="width:100%; margin-top: 1.5rem; padding: 1rem;"
+                onclick="completeOnboarding()">Save & Continue</button>
+        </div>
+    </div>
+
+    <!-- MAIN APP -->
+    <div class="container hidden" id="main-app">
+        <header>
+            <img src="{{ url_for('static', filename='logo_dashboard.png') }}" class="nav-logo" alt="NRCM Logo">
+            <h1>AI-Based Interview Preparation Assistant</h1>
+            <div class="profile-trigger" id="profile-container" onclick="toggleProfileMenu()">
+                <img id="user-photo" src="https://ui-avatars.com/api/?name=User&background=4f46e5&color=fff"
+                    alt="Profile">
+                <span id="user-display">User</span>
+                <span style="font-size: 0.7rem; color: #94a3b8;">▼</span>
+
+                <div id="profile-menu" class="dropdown-menu">
+                    <button class="dropdown-item" onclick="openProfileEdit()">Personal Details</button>
+                    <button class="dropdown-item" onclick="logout()">Sign Out</button>
+                </div>
+            </div>
+        </header>
+
+        <div class="progress-container hidden" id="main-progress">
+            <div class="steps">
+                <div class="step active">1</div>
+                <div class="step">2</div>
+                <div class="step">3</div>
+                <div class="step">4</div>
+                <div class="step">5</div>
+            </div>
+            <p id="step-label"
+                style="text-align: center; font-weight: 700; color: var(--primary); margin-top: 1rem; font-size: 0.8rem;">
+            </p>
+        </div>
+
+        <!-- DASHBOARD HOME -->
+        <section id="dashboard-home" class="grid-cols" style="margin-top: 1rem;">
+            <div class="card card-action" onclick="startModule('resume')">
+                <div style="font-size: 2.5rem; margin-bottom: 1.5rem;">📋</div>
+                <h3 style="margin-bottom: 0.75rem;">Resume Based</h3>
+                <p>Tailored questions generated directly from your uploaded experience and technical skills.</p>
+                <button class="btn btn-secondary" style="margin-top: 2rem; width: 100%;">Begin Round</button>
+            </div>
+
+            <div class="card card-action" onclick="startModule('domain')">
+                <div style="font-size: 2.5rem; margin-bottom: 1.5rem;">🚀</div>
+                <h3 style="margin-bottom: 0.75rem;">Technical Domain</h3>
+                <p>Preparation for specialized roles like VLSI Design, ML Engineering, or Software Dev.</p>
+                <button class="btn btn-secondary" style="margin-top: 2rem; width: 100%;">Select Domain</button>
+            </div>
+
+            <div class="card card-action" onclick="startModule('common')">
+                <div style="font-size: 2.5rem; margin-bottom: 1.5rem;">💼</div>
+                <h3 style="margin-bottom: 0.75rem;">HR & Behavioral</h3>
+                <p>Perfect your storytelling with situational questions and common HR interview simulations.</p>
+                <button class="btn btn-secondary" style="margin-top: 2rem; width: 100%;">Start Practice</button>
+            </div>
+        </section>
+
+        <!-- STEP 1: UPLOAD -->
+        <section id="step-1" class="card hidden">
+            <h2 style="margin-bottom: 2rem;">Upload Your Resume</h2>
+            <div id="upload-box"
+                style="border: 2px dashed var(--primary); background: #f5f3ff; border-radius: 2rem; padding: 6rem; text-align: center; cursor: pointer; position: relative;"
+                onmouseover="this.style.background='#ede9fe'" onmouseout="this.style.background='#f5f3ff'">
+                <input type="file" id="file-upload" style="position: absolute; inset:0; opacity:0; cursor:pointer;"
+                    onchange="handleUpload()">
+                <div id="upload-status-icon" style="font-size: 3rem; margin-bottom: 1.5rem;">📤</div>
+                <h3 id="upload-status-text">Drop your PDF file here</h3>
+                <p id="upload-status-subtext" style="margin-top: 0.5rem;">We'll automatically extract your skills for
+                    the interview.</p>
+            </div>
+            <div style="display: flex; gap: 1rem; margin-top: 2rem;">
+                <button class="btn btn-secondary" style="flex: 1;" onclick="goBack()">← Back Home</button>
+                <button id="resume-next-btn" class="btn btn-primary" style="flex: 1;" onclick="setStep(2)"
+                    disabled>Continue Analysis →</button>
+            </div>
+        </section>
+
+        <!-- STEP 2: SUMMARY -->
+        <section id="step-2" class="hidden">
+            <h2 style="margin-bottom: 2rem; text-align: center;">Resume Analysis</h2>
+            <div class="grid-cols" style="margin-bottom: 3rem;">
+                <div class="card" style="text-align: center; border-bottom: 4px solid var(--primary);">
+                    <div id="ats-score-display" style="font-size: 3.5rem; font-weight: 800; color: var(--primary);">0
+                    </div>
+                    <p style="font-weight: 600; margin-top: 0.5rem;">ATS Readiness Score</p>
+                </div>
+                <div class="card" style="text-align: center;">
+                    <div id="skills-count-display"
+                        style="font-size: 3.5rem; font-weight: 800; color: var(--text-dark);">0</div>
+                    <p style="font-weight: 600; margin-top: 0.5rem;">Technical Skills Found</p>
+                </div>
+            </div>
+            <button class="btn btn-primary" style="width: 100%; padding: 1.25rem;" onclick="startMCQ('tech')">Start
+                Assessment Module →</button>
+        </section>
+
+        <section id="step-3" class="card hidden">
+            <h2 id="mcq-q-text" style="line-height: 1.4;">Question Title</h2>
+            <div id="mcq-options-list" style="display: flex; flex-direction: column; gap: 1rem; margin-top: 3rem;">
+            </div>
+            <button class="btn btn-secondary" style="margin-top: 2rem; width: 100%;" onclick="goBack()">Exit to
+                Dashboard</button>
+        </section>
+
+        <!-- STEP 4: INTERVIEW -->
+        <section id="step-4" class="card hidden">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+                <h2 id="int-title">AI Voice Interaction</h2>
+                <div id="rec-indicator" class="hidden"
+                    style="color: #ef4444; font-weight: 700; display: flex; align-items: center; gap: 0.5rem;">
+                    <span
+                        style="width: 10px; height: 10px; background: #ef4444; border-radius: 50%; opacity:1; animation: blink 1s infinite;"></span>
+                    RECORDING
+                </div>
+            </div>
+
+            <div id="scrolling-chat" class="chat-container"></div>
+
+            <div style="display: flex; gap: 1rem; margin-top: 2rem;">
+                <input type="text" id="chat-inp" placeholder="Type your answer or use microphone..." style="flex: 1;">
+                <button class="btn btn-secondary"
+                    style="width: 3.5rem; height: 3.5rem; border-radius: 1rem; font-size: 1.2rem;" id="mic-btn"
+                    onclick="toggleVoice()">🎙️</button>
+                <button class="btn btn-primary" style="padding: 0 2rem;" onclick="sendAns()">Send</button>
+            </div>
+            <button class="btn btn-secondary" style="margin-top: 2rem; width: 100%;" onclick="goBack()">Exit to
+                Dashboard</button>
+        </section>
+
+        <!-- STEP 5: FINAL -->
+        <section id="step-5" class="hidden">
+            <h2 style="margin-bottom: 2rem; text-align: center;">Performance Scorecard</h2>
+            <div id="score-cards-container" class="grid-cols" style="margin-bottom: 3rem;"></div>
+
+            <div class="card">
+                <h3 style="margin-bottom: 1.5rem;">AI Insight & Feedback</h3>
+                <ul id="int-feedback-list" style="padding-left: 1.5rem; line-height: 2; color: var(--text-muted);"></ul>
+            </div>
+
+            <div style="display: flex; gap: 1rem; margin-top: 3rem;">
+                <button class="btn btn-primary" style="flex: 1; padding: 1rem;" onclick="downloadReport()">📥 Export
+                    Detailed PDF</button>
+                <button class="btn btn-secondary" style="flex: 1; padding: 1rem;" onclick="goBack()">Back to
+                    Dashboard</button>
+            </div>
+        </section>
+    </div>
+
+    <!-- PROFILE EDIT MODAL -->
+    <div id="profile-edit-modal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 650px;">
+            <h2 style="margin-bottom: 0.5rem;">Personal Details</h2>
+            <p style="margin-bottom: 2rem;">Keep your profile updated for better interview matching.</p>
+
+            <div style="display: flex; flex-direction: column; align-items: center; margin-bottom: 2.5rem;">
+                <img id="edit-photo-preview" src=""
+                    style="width: 100px; height: 100px; border-radius: 50%; border: 3px solid #f1f5f9; object-fit: cover; margin-bottom: 1rem;">
+                <button class="btn btn-secondary" onclick="document.getElementById('edit-photo-input').click()">Update
+                    Photo</button>
+                <input type="file" id="edit-photo-input" hidden accept="image/*" onchange="previewPhoto(event)">
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div class="form-group">
+                    <label>Full Name</label>
+                    <input type="text" id="edit-name">
+                </div>
+                <div class="form-group">
+                    <label>Phone Number</label>
+                    <input type="text" id="edit-phone">
+                </div>
+                <div class="form-group">
+                    <label>College</label>
+                    <input type="text" id="edit-college">
+                </div>
+                <div class="form-group">
+                    <label>Graduation Year</label>
+                    <input type="number" id="edit-year">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Technical Skills (Comma separated)</label>
+                <input type="text" id="edit-skills">
+            </div>
+
+            <div style="display: flex; gap: 1rem; margin-top: 2rem;">
+                <button class="btn btn-secondary" style="flex: 1;" onclick="closeModals()">Cancel</button>
+                <button class="btn btn-primary" style="flex: 1;" onclick="savePersonalDetails()">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        @keyframes blink {
+            50% {
+                opacity: 0.3;
+            }
+        }
+    </style>
+
+    <script src="{{ url_for('static', filename='scripts.js') }}?v=1.7"></script>
+</body>
+
+</html>

@@ -37,7 +37,13 @@ async function loginWithGoogle() {
             credentials: 'include'
         });
         const data = await res.json();
-        if (data.error) throw new Error(data.error);
+        if (data.error) {
+            let msg = data.error;
+            if (data.debug_info) {
+                msg += "\n\nDebug Info: " + JSON.stringify(data.debug_info, null, 2);
+            }
+            throw new Error(msg);
+        }
 
         user = data;
         document.getElementById('login-screen').classList.add('hidden');

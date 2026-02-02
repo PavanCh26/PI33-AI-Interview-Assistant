@@ -1,5 +1,56 @@
+// --- FIREBASE CONFIG ---
+const firebaseConfig = {
+    apiKey: "AIzaSyB8KuRNyNmffaEII-TCSiqUbFufGofxGrk",
+    authDomain: "pi33-firebase.firebaseapp.com",
+    projectId: "pi33-firebase",
+    storageBucket: "pi33-firebase.firebasestorage.app",
+    messagingSenderId: "723661225567",
+    appId: "1:723661225567:web:84340e2b3729ca2d9d25ea",
+    measurementId: "G-6HV2D3LJQP"
+};
+
+// Initialize Firebase
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const googleProvider = new firebase.auth.GoogleAuthProvider();
+
 // --- CONFIG ---
 const API_BASE = "/api";
+
+async function loginWithGoogle() {
+    try {
+        const result = await auth.signInWithPopup(googleProvider);
+        const userFirebase = result.user;
+        const idToken = await userFirebase.getIdToken();
+
+        // Send to backend for verification and session creation
+        const res = await fetch(API_BASE + "/auth/firebase", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                idToken,
+                email: userFirebase.email,
+                name: userFirebase.displayName,
+                photo: userFirebase.photoURL
+            }),
+            credentials: 'include'
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+
+        user = data;
+        document.getElementById('login-screen').classList.add('hidden');
+
+        if (!user.onboarded) {
+            document.getElementById('onboarding-screen').style.display = 'flex';
+        } else {
+            document.getElementById('main-app').classList.remove('hidden');
+            updateProfileUI();
+        }
+    } catch (err) {
+        alert("Google Login Failed: " + err.message);
+    }
+}
 
 // --- STATE ---
 let isLoginMode = true;

@@ -11,6 +11,18 @@ import webbrowser
 from datetime import datetime
 from dotenv import load_dotenv
 from werkzeug.exceptions import HTTPException
+import firebase_admin
+from firebase_admin import credentials, auth
+
+# Initialize Firebase Admin
+# Load key from firebase-key.json (User needs to upload this)
+try:
+    if not firebase_admin._apps:
+        cred = credentials.Certificate('firebase-key.json')
+        firebase_admin.initialize_app(cred)
+    print("DEBUG: Firebase Admin initialized successfully.", flush=True)
+except Exception as e:
+    print(f"WARNING: Firebase Admin not initialized: {e}", flush=True)
 
 load_dotenv() 
 
@@ -98,6 +110,51 @@ def register():
     }
     
     return jsonify({'message': 'User registered successfully', 'user_id': user_id})
+
+@app.route('/api/auth/firebase', methods=['POST'])
+def auth_firebase():
+    data = request.get_json(silent=True)
+    if not data or 'idToken' not in data:
+        return jsonify({'error': 'Missing idToken'}), 400
+    
+    id_token = data.get('idToken')
+    try:
+        # Verify the ID token
+        decoded_token = auth.verify_id_token(id_token)
+        uid = decoded_token['uid']
+        email = decoded_token.get('email')
+        name = decoded_token.get('name', 'Google User')
+        
+        # Check if user exists, else create
+        if email not in IN_MEMORY_USERS:
+            user_id = str(uuid.uuid4())
+            IN_MEMORY_USERS[email] = {
+                'user_id': user_id,
+                'email': email,
+                'firebase_uid': uid,
+                'name': name,
+                'onboarded': 0,
+                'profile': {}
+            }
+        
+        user_data = IN_MEMORY_USERS[email]
+        session['user_id'] = user_data['user_id']
+        session['user_email'] = email
+        session.permanent = True
+        
+        return jsonify({
+            'user_id': user_data['user_id'],
+            'email': email,
+            'name': user_data['name'],
+            'onboarded': user_data['onboarded'],
+            'profile': user_data['profile']
+        })
+        
+    except ValueError:
+        return jsonify({'error': 'Invalid ID token'}), 401
+    except Exception as e:
+        print(f"DEBUG: Firebase auth error: {e}", flush=True)
+        return jsonify({'error': 'Could not verify Firebase token. Ensure firebase-key.json is uploaded.'}), 500
 
 @app.route('/api/login', methods=['POST'])
 def login_api():

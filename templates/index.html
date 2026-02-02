@@ -9,6 +9,9 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=1.5">
+    <!-- FIREBASE SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
 </head>
 
 <body>
@@ -69,6 +72,18 @@
 
             <button id="auth-btn" class="btn btn-primary" style="width: 100%; margin-top: 1rem;"
                 onclick="handleAuth()">Sign In</button>
+
+            <div style="margin-top: 1.5rem; position: relative; text-align: center;">
+                <div style="position: absolute; top: 50%; left: 0; right: 0; border-top: 1px solid #e2e8f0;"></div>
+                <span
+                    style="position: relative; background: white; padding: 0 1rem; color: #64748b; font-size: 0.8rem;">OR</span>
+            </div>
+
+            <button onclick="loginWithGoogle()" class="btn btn-secondary"
+                style="width: 100%; margin-top: 1.5rem; display: flex; align-items: center; justify-content: center; gap: 0.75rem;">
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="18">
+                Sign in with Google
+            </button>
 
             <p style="margin-top: 2rem; text-align: center; font-size: 0.9rem;">
                 <span id="auth-toggle-text">Don't have an account?</span>

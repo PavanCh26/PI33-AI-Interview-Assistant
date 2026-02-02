@@ -290,10 +290,14 @@ def get_results():
     if 'user_id' not in session: return jsonify({'error': 'Unauthorized'}), 401
     db_conn = get_db()
     if not db_conn: return jsonify({'error': 'DB Error'}), 500
-    email = session.get('user_email')
-    # Custom filtering via REST requires more complex code, here we use simple list
-    results = db_conn.get_collection('results', limit=20)
-    user_results = [r for r in results if r.get('user_email') == email]
+    email = session.get('user_email', '').lower()
+    
+    # Fetch a larger batch and filter
+    results = db_conn.get_collection('results', limit=50)
+    user_results = [r for r in results if r.get('user_email', '').lower() == email]
+    
+    # Sort by date descending
+    user_results.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
     return jsonify(user_results)
 
 @app.route('/api/export/pdf', methods=['POST'])

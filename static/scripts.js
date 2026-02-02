@@ -320,12 +320,17 @@ async function loadHistory() {
             return;
         }
 
+        const photoUrl = user && user.photo ? user.photo : `https://ui-avatars.com/api/?name=${encodeURIComponent(user ? user.name : 'U')}&background=4f46e5&color=fff`;
+
         list.innerHTML = data.map(item => {
             const score = item.scores ? item.scores.interview : (item.score_interview || 7);
             const percent = score * 10;
             return `
             <div class="card" style="padding: 1.5rem; border-left: 4px solid var(--primary); display: flex; align-items: center; gap: 1.5rem;">
-                <div class="circle-score" style="--percent: ${percent}" data-score="${score}"></div>
+                <div style="position: relative;">
+                    <div class="circle-score" style="--percent: ${percent}" data-score="${score}"></div>
+                    <img src="${photoUrl}" style="position: absolute; bottom: -5px; right: -5px; width: 30px; height: 30px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                </div>
                 <div style="flex: 1;">
                     <h4 style="margin-bottom: 0.25rem;">${item.date || 'Past Session'}</h4>
                     <p style="font-size: 0.8rem; color: #64748b; margin-bottom: 0.75rem;">${item.responses ? item.responses.length : 0} Questions Answered</p>
@@ -698,7 +703,7 @@ function addMsg(txt, type) {
     chat.scrollTop = chat.scrollHeight;
 }
 
-function showFinalResults() {
+async function showFinalResults() {
     setStep(5);
     let interviewScore = 7;
     if (interviewRatings.length > 0) {
@@ -722,6 +727,23 @@ function showFinalResults() {
 
     const list = document.getElementById('int-feedback-list');
     list.innerHTML = feedbackLog.map(l => `<li>${l}</li>`).join('');
+
+    // Persistence: Save to DB
+    try {
+        await fetch(API_BASE + "/results/save", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                scores: { interview: interviewScore, mcq: mcqScore },
+                responses: [],
+                feedback: feedbackLog
+            }),
+            credentials: 'include'
+        });
+        console.log("Results saved to Firestore.");
+    } catch (e) {
+        console.error("Result save error:", e);
+    }
 }
 
 async function downloadReport() {
@@ -786,6 +808,7 @@ function goBack() {
     document.getElementById('scrolling-chat').innerHTML = '';
 
     setStep(0);
+    loadHistory(); // Refresh history on return
 }
 
 function closeModals() {

@@ -706,14 +706,17 @@ function showFinalResults() {
     }
 
     const container = document.getElementById('score-cards-container');
+    const mcqScore = scores.tech + scores.apt;
+    const mcqPercent = (mcqScore / 5) * 100;
+
     container.innerHTML = `
-        <div class="card" style="text-align:center;">
-             <div style="color:var(--primary); font-size:2.5rem; font-weight:800;">${interviewScore}/10</div>
-             <p style="font-weight:600; margin-top:0.5rem;">Interview Rating</p>
+        <div style="text-align:center;">
+             <div class="circle-score large" style="--percent: ${interviewScore * 10}; margin: 0 auto;" data-score="${interviewScore}"></div>
+             <p style="font-weight:600; margin-top:1rem; color: var(--text-muted);">Interview Rating</p>
         </div>
-        <div class="card" style="text-align:center;">
-             <div style="color:var(--text-dark); font-size:2.5rem; font-weight:800;">${scores.tech + scores.apt}/5</div>
-             <p style="font-weight:600; margin-top:0.5rem;">MCQ Performance</p>
+        <div style="text-align:center;">
+             <div class="circle-score large" style="--percent: ${mcqPercent}; margin: 0 auto; background: conic-gradient(#10b981 calc(var(--percent) * 1%), #f1f5f9 0);" data-score="${mcqScore}/5"></div>
+             <p style="font-weight:600; margin-top:1rem; color: var(--text-muted);">MCQ Performance</p>
         </div>
     `;
 

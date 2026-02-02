@@ -272,7 +272,8 @@
         <!-- STEP 5: FINAL -->
         <section id="step-5" class="hidden">
             <h2 style="margin-bottom: 2rem; text-align: center;">Performance Scorecard</h2>
-            <div id="score-cards-container" class="grid-cols" style="margin-bottom: 3rem;"></div>
+            <div id="score-cards-container"
+                style="display: flex; justify-content: center; gap: 3rem; margin-bottom: 3rem;"></div>
 
             <div class="card">
                 <h3 style="margin-bottom: 1.5rem;">AI Insight & Feedback</h3>
@@ -353,29 +354,40 @@
 
         .circle-score {
             position: relative;
-            width: 70px;
-            height: 70px;
+            width: 80px;
+            height: 80px;
             border-radius: 50%;
-            background: conic-gradient(var(--primary) calc(var(--percent) * 1%), #e2e8f0 0);
+            background: conic-gradient(var(--primary) calc(var(--percent) * 1%), #f1f5f9 0);
             display: flex;
             align-items: center;
             justify-content: center;
-            margin: 0 auto;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
         }
 
         .circle-score::after {
             content: attr(data-score);
             position: absolute;
-            width: 58px;
-            height: 58px;
+            width: 66px;
+            height: 66px;
             background: white;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
             font-weight: 800;
-            font-size: 1.1rem;
+            font-size: 1.25rem;
             color: var(--text-dark);
+        }
+
+        .circle-score.large {
+            width: 120px;
+            height: 120px;
+        }
+
+        .circle-score.large::after {
+            width: 100px;
+            height: 100px;
+            font-size: 2rem;
         }
     </style>
 

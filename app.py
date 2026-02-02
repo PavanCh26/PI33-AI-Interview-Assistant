@@ -59,6 +59,11 @@ def initialize_firebase():
 # Initial attempt at startup removed to save memory on Render
 # initialize_firebase()
 
+def get_db():
+    if initialize_firebase():
+        return db
+    return None
+
 from flask import Flask, render_template, request, jsonify, session, send_file, make_response
 from flask_cors import CORS
 from flask_bcrypt import Bcrypt
@@ -138,8 +143,8 @@ def health_check():
 # --- AUTH ENDPOINTS ---
 @app.route('/api/register', methods=['POST'])
 def register():
-    from firebase_admin import firestore
-    if not db:
+    db_conn = get_db()
+    if not db_conn:
         return jsonify({'error': 'Database not initialized'}), 500
     try:
         data = request.get_json(silent=True)
@@ -158,7 +163,7 @@ def register():
         print(f"DEBUG: Error in register: {str(e)}", flush=True)
         return jsonify({'error': 'Internal registration error'}), 500
         
-    user_ref = db.collection('users').document(email)
+    user_ref = db_conn.collection('users').document(email)
     if user_ref.get().exists:
         print(f"DEBUG: Email {email} already exists", flush=True)
         return jsonify({'error': 'Email already exists'}), 400
@@ -182,8 +187,8 @@ def register():
 @app.route('/api/auth/firebase', methods=['POST'])
 def auth_firebase():
     from firebase_admin import auth, firestore
-    # Attempt initialization again if it previously failed (failsafe)
-    if not initialize_firebase():
+    db_conn = get_db()
+    if not db_conn:
         files = os.listdir('.')
         return jsonify({
             'error': 'Firebase server-side SDK not initialized.',
@@ -216,7 +221,7 @@ def auth_firebase():
         print(f"DEBUG: Firebase UID: {uid}, Email: {email}", flush=True)
 
         # Persistence with Firestore
-        user_ref = db.collection('users').document(email)
+        user_ref = db_conn.collection('users').document(email)
         doc = user_ref.get()
         
         if not doc.exists:
@@ -260,7 +265,8 @@ def auth_firebase():
 
 @app.route('/api/login', methods=['POST'])
 def login_api():
-    if not db:
+    db_conn = get_db()
+    if not db_conn:
         return jsonify({'error': 'Database not initialized'}), 500
     try:
         data = request.get_json(silent=True)
@@ -271,7 +277,7 @@ def login_api():
         email = data.get('email')
         password = data.get('password')
         
-        user_ref = db.collection('users').document(email)
+        user_ref = db_conn.collection('users').document(email)
         doc = user_ref.get()
         user_data = doc.to_dict() if doc.exists else None
         
@@ -303,13 +309,15 @@ def login_api():
 def save_profile():
     if 'user_id' not in session:
         return jsonify({'error': 'Unauthorized'}), 401
-    if not db:
+        
+    db_conn = get_db()
+    if not db_conn:
         return jsonify({'error': 'Database not initialized'}), 500
     data = request.json
     user_id = data.get('user_id')
     email = session.get('user_email')
     
-    user_ref = db.collection('users').document(email)
+    user_ref = db_conn.collection('users').document(email)
     doc = user_ref.get()
     
     if not doc.exists:
@@ -338,11 +346,13 @@ def save_profile():
 def get_profile(user_id):
     if 'user_id' not in session or session['user_id'] != user_id:
         return jsonify({'error': 'Unauthorized'}), 401
-    if not db:
+        
+    db_conn = get_db()
+    if not db_conn:
         return jsonify({'error': 'Database not initialized'}), 500
     
     email = session.get('user_email')
-    user_ref = db.collection('users').document(email)
+    user_ref = db_conn.collection('users').document(email)
     doc = user_ref.get()
     
     if not doc.exists:
@@ -366,13 +376,15 @@ def get_profile(user_id):
 def save_results():
     if 'user_id' not in session:
         return jsonify({'error': 'Unauthorized'}), 401
-    if not db:
+        
+    db_conn = get_db()
+    if not db_conn:
         return jsonify({'error': 'Database not initialized'}), 500
     data = request.json
     user_id = data.get('user_id')
     
     email = session.get('user_email')
-    user_ref = db.collection('users').document(email)
+    user_ref = db_conn.collection('users').document(email)
     
     result_data = {
         'timestamp': datetime.now().isoformat(),
@@ -391,11 +403,13 @@ def save_results():
 def get_results():
     if 'user_id' not in session:
         return jsonify({'error': 'Unauthorized'}), 401
-    if not db:
+        
+    db_conn = get_db()
+    if not db_conn:
         return jsonify({'error': 'Database not initialized'}), 500
     
     email = session.get('user_email')
-    user_ref = db.collection('users').document(email)
+    user_ref = db_conn.collection('users').document(email)
     
     results = []
     # Fetch all documents in the 'results' sub-collection
@@ -410,7 +424,8 @@ def get_results():
 
 @app.route('/api/export/pdf', methods=['POST'])
 def export_pdf():
-    if not db:
+    db_conn = get_db()
+    if not db_conn:
         # Fallback for PDF if DB is down? Better to fail gracefully.
         return jsonify({'error': 'Database not initialized'}), 500
     data = request.json
@@ -435,7 +450,7 @@ def export_pdf():
     email = session.get('user_email')
     user_name = "Candidate"
     if email:
-        user_ref = db.collection('users').document(email)
+        user_ref = db_conn.collection('users').document(email)
         doc = user_ref.get()
         if doc.exists:
             user_name = doc.to_dict().get('name', "Candidate")

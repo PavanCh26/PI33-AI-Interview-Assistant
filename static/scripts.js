@@ -495,8 +495,9 @@ function selectDomain(domain) {
 }
 
 function setStep(n) {
-    // Hide dashboard and all steps
+    // Hide dashboard, history, and all steps
     document.getElementById('dashboard-home').classList.add('hidden');
+    document.getElementById('history-section').classList.add('hidden');
     for (let i = 1; i <= 5; i++) {
         const s = document.getElementById(`step-${i}`);
         if (s) s.classList.add('hidden');
@@ -504,9 +505,11 @@ function setStep(n) {
 
     if (n === 0) {
         document.getElementById('dashboard-home').classList.remove('hidden');
+        document.getElementById('history-section').classList.remove('hidden');
         document.getElementById('main-progress').classList.add('hidden');
         document.getElementById('step-label').style.display = 'none';
         currentStep = 0;
+        loadHistory(); // Refresh history on return
     } else {
         const target = document.getElementById(`step-${n}`);
         if (target) target.classList.remove('hidden');
@@ -808,7 +811,6 @@ function goBack() {
     document.getElementById('scrolling-chat').innerHTML = '';
 
     setStep(0);
-    loadHistory(); // Refresh history on return
 }
 
 function closeModals() {

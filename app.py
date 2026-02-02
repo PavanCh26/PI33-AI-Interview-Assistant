@@ -17,7 +17,13 @@ from firebase_admin import credentials, auth, firestore
 # Initialize Firebase Admin
 db = None
 def initialize_firebase():
+    global db
     if firebase_admin._apps:
+        if db is None:
+            try:
+                db = firestore.client()
+            except:
+                pass
         return True
         
     print(f"DEBUG: Starting Firebase Admin initialization. Current directory: {os.getcwd()}", flush=True)
@@ -32,7 +38,6 @@ def initialize_firebase():
             cred_dict = json.loads(firebase_key_json)
             cred = credentials.Certificate(cred_dict)
             firebase_admin.initialize_app(cred)
-            global db
             db = firestore.client()
             return True
 
@@ -50,7 +55,6 @@ def initialize_firebase():
                 print(f">>> SUCCESS: Found key file at {path}", flush=True)
                 cred = credentials.Certificate(path)
                 firebase_admin.initialize_app(cred)
-                global db
                 db = firestore.client()
                 return True
         

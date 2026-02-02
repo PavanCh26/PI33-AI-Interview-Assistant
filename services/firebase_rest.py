@@ -5,22 +5,38 @@ import json
 class FirebaseRest:
     def __init__(self):
         self.project_id = os.getenv("FIREBASE_PROJECT_ID", "pi33-firebase")
-        self.api_key = os.getenv("FIREBASE_API_KEY") 
+        # Fallback to the known public key if not in env
+        self.api_key = os.getenv("FIREBASE_API_KEY", "AIzaSyB8KuRNyNmffaEII-TCSiqUbFufGofxGrk") 
         self.base_url = f"https://firestore.googleapis.com/v1/projects/{self.project_id}/databases/(default)/documents"
 
     def verify_id_token(self, id_token):
-        """Verifies a Firebase ID token using the Google tokeninfo endpoint."""
+        """Verifies a Firebase ID token using the Identity Toolkit API."""
         try:
+            # Using the Identity Toolkit which is more reliable for Firebase ID tokens
+            url = f"https://identitytoolkit.googleapis.com/v1/accounts:lookup?key={self.api_key}"
+            payload = {"idToken": id_token}
+            response = requests.post(url, json=payload, timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                if 'users' in data and len(data['users']) > 0:
+                    user_info = data['users'][0]
+                    # Map to the same format as decoded_token for backward compatibility
+                    return {
+                        'email': user_info.get('email'),
+                        'sub': user_info.get('localId'),
+                        'name': user_info.get('displayName', 'User'),
+                        'picture': user_info.get('photoUrl', '')
+                    }
+            
+            # Fallback to tokeninfo if Identity Toolkit fails
             url = f"https://oauth2.googleapis.com/tokeninfo?id_token={id_token}"
             response = requests.get(url, timeout=10)
             if response.status_code == 200:
-                data = response.json()
-                # Check if it's for our project
-                if data.get('aud') == self.project_id or data.get('azp'): # Simplify for now
-                    return data
-            print(f"Token verification failed: {response.text}")
+                return response.json()
+                
+            print(f"DEBUG: All verification methods failed. Status: {response.status_code}, Response: {response.text}")
         except Exception as e:
-            print(f"Token verification error: {e}")
+            print(f"DEBUG: Verification exception: {e}")
         return None
 
     def _convert_value(self, value):
@@ -39,11 +55,17 @@ class FirebaseRest:
         """Helper to convert Python dict to Firestore REST fields."""
         fields = {}
         for k, v in data.items():
+            if v is None: continue
             if isinstance(v, str): fields[k] = {'stringValue': v}
             elif isinstance(v, bool): fields[k] = {'booleanValue': v}
-            elif isinstance(v, int): fields[k] = {'integerValue': str(v)}
+            elif isinstance(v, (int, float)): fields[k] = {'integerValue': str(int(v))}
             elif isinstance(v, dict): fields[k] = {'mapValue': {'fields': self._to_firestore_dict(v)}}
-            elif isinstance(v, list): fields[k] = {'arrayValue': {'values': [self._to_firestore_dict({'item': x})['item'] for x in v]}}
+            elif isinstance(v, list): 
+                vals = []
+                for x in v:
+                    if isinstance(x, str): vals.append({'stringValue': x})
+                    elif isinstance(x, dict): vals.append({'mapValue': {'fields': self._to_firestore_dict(x)}})
+                fields[k] = {'arrayValue': {'values': vals}}
         return fields
 
     def get_document(self, collection_path, document_id):
@@ -54,6 +76,8 @@ class FirebaseRest:
             if response.status_code == 200:
                 data = response.json()
                 return {k: self._convert_value(v) for k, v in data.get('fields', {}).items()}
+            else:
+                print(f"DEBUG: Firestore Get document failed. Path: {collection_path}/{document_id}, Status: {response.status_code}, Response: {response.text}")
             return None
         except Exception as e:
             print(f"Firestore Get Error: {e}")

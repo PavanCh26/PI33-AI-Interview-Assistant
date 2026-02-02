@@ -15,10 +15,17 @@ import firebase_admin
 from firebase_admin import credentials, auth
 
 # Initialize Firebase Admin
-# Load key from firebase-key.json (User needs to upload this)
 try:
     if not firebase_admin._apps:
-        cred = credentials.Certificate('firebase-key.json')
+        # Check for environment variable first (for production/Render)
+        firebase_key_json = os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON")
+        if firebase_key_json:
+            import json
+            cred_dict = json.loads(firebase_key_json)
+            cred = credentials.Certificate(cred_dict)
+        else:
+            # Fallback to local file
+            cred = credentials.Certificate('firebase-key.json')
         firebase_admin.initialize_app(cred)
     print("DEBUG: Firebase Admin initialized successfully.", flush=True)
 except Exception as e:

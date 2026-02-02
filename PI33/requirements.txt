@@ -1,9 +1,0 @@
-flask
-flask-cors
-flask-bcrypt
-python-dotenv
-fpdf
-pypdf
-gunicorn
-openai
-google-generativeai

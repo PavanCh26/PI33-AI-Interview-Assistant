@@ -2,7 +2,6 @@ from flask import Flask, render_template, request, jsonify, session, send_file, 
 from flask_cors import CORS
 from flask_bcrypt import Bcrypt
 from services.pdf_processor import extract_text_from_pdf
-from services.llm_engine import LLMEngine
 from fpdf import FPDF
 import io
 import os
@@ -93,7 +92,13 @@ bcrypt = Bcrypt(app)
 IN_MEMORY_SESSIONS = {} # { session_id: {skills, score, history} }
 IN_MEMORY_RESULTS = {} # { user_id: [results] }
 
-llm = LLMEngine()
+_llm = None
+def get_llm():
+    global _llm
+    if _llm is None:
+        from services.llm_engine import LLMEngine
+        _llm = LLMEngine()
+    return _llm
 
 # --- GLOBAL JSON ERROR HANDLERS ---
 @app.errorhandler(404)
@@ -512,8 +517,8 @@ def upload_resume():
             if not text:
                  return jsonify({'error': 'Could not extract text from PDF'}), 400
                  
-            skills = llm.extract_skills(text)
-            score = llm.score_resume(text)
+            skills = get_llm().extract_skills(text)
+            score = get_llm().score_resume(text)
             
             # Save to in-memory sessions
             session_id = str(uuid.uuid4())
@@ -546,7 +551,7 @@ def start_interview():
     
     data = IN_MEMORY_SESSIONS[session_id]
     context_to_use = data.get('context', 'Resume')
-    question = llm.generate_question(data['skills'], data['history'], context_to_use)
+    question = get_llm().generate_question(data['skills'], data['history'], context_to_use)
     return jsonify({'question': question, 'session_id': session_id})
 
 @app.route('/api/interview/answer', methods=['POST'])
@@ -560,7 +565,7 @@ def submit_answer():
         return jsonify({'error': 'Session not found'}), 404
     
     data = IN_MEMORY_SESSIONS[session_id]
-    eval_data = llm.evaluate_answer(question, answer)
+    eval_data = get_llm().evaluate_answer(question, answer)
     feedback = eval_data.get('feedback', 'Good response.')
     rating = eval_data.get('rating', 7)
     
@@ -568,7 +573,7 @@ def submit_answer():
     
     context_to_use = data.get('context', 'Resume')
     print(f"DEBUG: submit_answer context={context_to_use}, history_len={len(data['history'])}", flush=True)
-    next_question = llm.generate_question(data['skills'], data['history'], context_to_use)
+    next_question = get_llm().generate_question(data['skills'], data['history'], context_to_use)
     print(f"DEBUG: Generated Question: {next_question}", flush=True)
     
     return jsonify({

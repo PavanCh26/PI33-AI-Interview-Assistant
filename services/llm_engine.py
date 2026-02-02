@@ -1,30 +1,41 @@
-import google.generativeai as genai
+# AI imports moved inside methods to save memory
 import os
 import json
 import random
-from openai import OpenAI
 
 class LLMEngine:
     def __init__(self):
         # Load API keys
         self.gemini_key = os.getenv("GOOGLE_API_KEY")
         self.openai_key = os.getenv("OPENAI_API_KEY")
+        self.gemini_model = None
+        self.openai_client = None
+        self._initialized = False
+
+    def _lazy_init(self):
+        if self._initialized: return
         
-        # Configure Gemini
-        if self.gemini_key:
-            genai.configure(api_key=self.gemini_key)
-            self.gemini_model = genai.GenerativeModel('gemini-1.5-flash')
-        else:
-            self.gemini_model = None
-            
-        # Configure OpenAI
         if self.openai_key:
-            self.openai_client = OpenAI(api_key=self.openai_key)
-        else:
-            self.openai_client = None
+            try:
+                from openai import OpenAI
+                self.openai_client = OpenAI(api_key=self.openai_key)
+            except ImportError:
+                print("DEBUG: openai not installed")
+
+        if self.gemini_key:
+            try:
+                import google.generativeai as genai
+                genai.configure(api_key=self.gemini_key)
+                self.gemini_model = genai.GenerativeModel('gemini-1.5-flash')
+            except ImportError:
+                print("DEBUG: google-generativeai not installed")
+        
+        self._initialized = True
 
     def _generate_text(self, prompt, temperature=0.7):
         """Unified method to call either Gemini or GPT-4o-mini."""
+        self._lazy_init()
+        
         # Prefer OpenAI if available, else use Gemini
         if self.openai_client:
             try:
@@ -39,6 +50,7 @@ class LLMEngine:
                 
         if self.gemini_model:
             try:
+                import google.generativeai as genai
                 response = self.gemini_model.generate_content(
                     prompt,
                     generation_config=genai.types.GenerationConfig(

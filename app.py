@@ -149,7 +149,15 @@ def register():
 def auth_firebase():
     # Attempt initialization again if it previously failed (failsafe)
     if not initialize_firebase():
-        return jsonify({'error': 'Firebase server-side SDK not initialized. Please check logs for file discovery errors.'}), 500
+        files = os.listdir('.')
+        return jsonify({
+            'error': 'Firebase server-side SDK not initialized.',
+            'debug_info': {
+                'cwd': os.getcwd(),
+                'files_in_root': files,
+                'key_exists': os.path.exists('firebase-key.json')
+            }
+        }), 500
 
     data = request.get_json(silent=True)
     if not data or 'idToken' not in data:

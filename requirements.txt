@@ -7,3 +7,4 @@ marshmallow
 flask-cors
 flask-bcrypt
 fpdf2
+gunicorn

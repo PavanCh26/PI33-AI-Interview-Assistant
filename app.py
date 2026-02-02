@@ -15,35 +15,48 @@ import firebase_admin
 from firebase_admin import credentials, auth
 
 # Initialize Firebase Admin
-try:
-    if not firebase_admin._apps:
-        # Check for environment variable first (for production/Render)
+def initialize_firebase():
+    if firebase_admin._apps:
+        return True
+        
+    print(f"DEBUG: Starting Firebase Admin initialization. Current directory: {os.getcwd()}", flush=True)
+    print(f"DEBUG: Files in root: {os.listdir('.')}", flush=True)
+    
+    try:
+        # 1. Try Environment Variable string
         firebase_key_json = os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON")
         if firebase_key_json:
-            print(">>> SUCCESS: FIREBASE_SERVICE_ACCOUNT_JSON was found in environment!", flush=True)
+            print(">>> SUCCESS: FIREBASE_SERVICE_ACCOUNT_JSON found in env.", flush=True)
             import json
-            print("DEBUG: Found FIREBASE_SERVICE_ACCOUNT_JSON env var.", flush=True)
-            try:
-                cred_dict = json.loads(firebase_key_json)
-                cred = credentials.Certificate(cred_dict)
-                firebase_admin.initialize_app(cred)
-            except Exception as json_err:
-                print(f"ERROR: Failed to parse Firebase JSON env var: {json_err}", flush=True)
-                # Fallback to local file if JSON parsing failed
-                if os.path.exists('firebase-key.json'):
-                    cred = credentials.Certificate('firebase-key.json')
-                    firebase_admin.initialize_app(cred)
-        else:
-            # Fallback to local file
-            if os.path.exists('firebase-key.json'):
-                cred = credentials.Certificate('firebase-key.json')
-                firebase_admin.initialize_app(cred)
-            else:
-                print("WARNING: No Firebase key found (neither env var nor file).", flush=True)
+            cred_dict = json.loads(firebase_key_json)
+            cred = credentials.Certificate(cred_dict)
+            firebase_admin.initialize_app(cred)
+            return True
 
-    print("DEBUG: Firebase Admin initialization check complete.", flush=True)
-except Exception as e:
-    print(f"WARNING: Firebase Admin initialization failed: {e}", flush=True)
+        # 2. Try Local File (Check multiple paths)
+        key_filename = 'firebase-key.json'
+        possible_paths = [
+            key_filename,
+            os.path.join(os.getcwd(), key_filename),
+            os.path.join(os.path.dirname(__file__), key_filename)
+        ]
+        
+        for path in possible_paths:
+            print(f"DEBUG: Checking for key at: {path}", flush=True)
+            if os.path.exists(path):
+                print(f">>> SUCCESS: Found key file at {path}", flush=True)
+                cred = credentials.Certificate(path)
+                firebase_admin.initialize_app(cred)
+                return True
+        
+        print("WARNING: No Firebase key found after checking all sources.", flush=True)
+        return False
+    except Exception as e:
+        print(f"ERROR: Firebase initialization failed: {str(e)}", flush=True)
+        return False
+
+# Initial attempt at startup
+initialize_firebase()
 
 load_dotenv() 
 
@@ -134,9 +147,9 @@ def register():
 
 @app.route('/api/auth/firebase', methods=['POST'])
 def auth_firebase():
-    # Final check for Firebase initialization
-    if not firebase_admin._apps:
-        return jsonify({'error': 'Firebase server-side SDK not initialized. Please check Render environment variables.'}), 500
+    # Attempt initialization again if it previously failed (failsafe)
+    if not initialize_firebase():
+        return jsonify({'error': 'Firebase server-side SDK not initialized. Please check logs for file discovery errors.'}), 500
 
     data = request.get_json(silent=True)
     if not data or 'idToken' not in data:

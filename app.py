@@ -20,6 +20,7 @@ try:
         # Check for environment variable first (for production/Render)
         firebase_key_json = os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON")
         if firebase_key_json:
+            print(">>> SUCCESS: FIREBASE_SERVICE_ACCOUNT_JSON was found in environment!", flush=True)
             import json
             print("DEBUG: Found FIREBASE_SERVICE_ACCOUNT_JSON env var.", flush=True)
             try:
